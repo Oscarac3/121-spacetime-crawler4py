@@ -19,16 +19,19 @@ def extract_next_links(url, resp):
     # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
     if resp.status != 200 or resp.raw_response is None:
         return []
+    try:
+        bs_obj = BeautifulSoup(resp.raw_response.content, "lxml")
+    except Exception:
+        return []
     
-    bs_obj = BeautifulSoup(resp.raw_response.content, "lxml")
-    total_links = []
+    total_links = set()
     for a in bs_obj.find_all("a", href = True):
-        link =  a["href"]    
-        total_href = urljoin(url, link)
+        hlink =  a["href"]    
+        total_href = urljoin(url, hlink)
         total_href, frag = urldefrag(total_href)
-        total_links.append(total_href)
+        total_links.add(total_href)
 
-    return total_links
+    return list(total_links)
 
 def is_valid(url):
     # Decide whether to crawl this url or not. 
