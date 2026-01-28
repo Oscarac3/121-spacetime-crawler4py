@@ -47,8 +47,8 @@ def is_valid(url):
                         "cs.uci.edu",
                         "informatics.uci.edu",
                         "stat.uci.edu"]
-
-        if not any(parsed.netloc.endswith("." + valid_domain) for valid_domain in allowed_domains):
+        l_domain = parsed.netloc.lower()
+        if not any(l_domain.endswith("." + valid_domain) or l_domain == valid_domain for valid_domain in allowed_domains):
             return False
 
         return not re.match(
