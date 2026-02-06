@@ -1,4 +1,5 @@
 import re
+import data_collector
 from utils import Response
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin, urldefrag
@@ -172,7 +173,10 @@ class Scraper:
         # idk what this code is doing
         try:
             bs_obj = BeautifulSoup(resp.raw_response.content, "lxml")
-        except Exception:
+            clean_text = bs_obj.get_text(separator=" ")
+            data_collector.update_longest_page(url, clean_text)
+        except Exception as e:
+            print(f"Error processing {url}: {e}")
             return []
         
         total_links = set()
