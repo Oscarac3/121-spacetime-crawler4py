@@ -2,7 +2,7 @@ import requests
 import cbor
 import time
 
-from utils.response import Response
+from .response import Response
 
 def download(url, config, logger=None):
     host, port = config.cache_server

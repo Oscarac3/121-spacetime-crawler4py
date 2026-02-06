@@ -1,9 +1,10 @@
-from utils import get_logger
-from crawler.frontier import Frontier
-from crawler.worker import Worker
+from .worker import Worker
+from .frontier import Frontier
+
+from utils import get_logger, Config
 
 class Crawler(object):
-    def __init__(self, config, restart, frontier_factory=Frontier, worker_factory=Worker):
+    def __init__(self, config : Config, restart : bool, frontier_factory=Frontier, worker_factory=Worker):
         self.config = config
         self.logger = get_logger("CRAWLER")
         self.frontier = frontier_factory(config, restart)

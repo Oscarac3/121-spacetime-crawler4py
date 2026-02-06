@@ -1,14 +1,14 @@
-from threading import Thread
-
-from inspect import getsource
-from utils.download import download
-from utils import get_logger
-import scraper
 import time
+from threading import Thread
+from inspect import getsource
 
+
+from . import scraper, Frontier
+from utils.download import download
+from utils import get_logger, Config
 
 class Worker(Thread):
-    def __init__(self, worker_id, config, frontier):
+    def __init__(self, worker_id, config : Config, frontier : Frontier):
         self.logger = get_logger(f"Worker-{worker_id}", "Worker")
         self.config = config
         self.frontier = frontier

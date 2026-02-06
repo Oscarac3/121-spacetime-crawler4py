@@ -4,11 +4,11 @@ import shelve
 from threading import Thread, RLock
 from queue import Queue, Empty
 
-from utils import get_logger, get_urlhash, normalize
+from utils import get_logger, get_urlhash, normalize, Config
 from scraper import is_valid
 
 class Frontier(object):
-    def __init__(self, config, restart):
+    def __init__(self, config : Config, restart : bool):
         self.logger = get_logger("FRONTIER")
         self.config = config
         self.to_be_downloaded = list()
