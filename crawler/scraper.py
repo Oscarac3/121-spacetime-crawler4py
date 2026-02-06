@@ -131,11 +131,8 @@ class Scraper:
         For example, a calendar page that has links to the next day, which has links to the next day, and so on.
         Return True if you think this is a trap, False otherwise.
         '''
-        # low words, calenders, large paths
-        try:
-            bs_obj = BeautifulSoup(resp.raw_response.content, "lxml")
-        except Exception:
-            return True
+        # calenders, large paths
+        
         
         path = url._parsed.path
         query = url._parsed.query
@@ -257,6 +254,11 @@ class Scraper:
 
         url_obj = URL(url)
         
+        # implement checker if url in seen urls (nofrag)
+        Link_, frag = urldefrag(url_obj.url)
+        if Link_ in self.seen_urls:
+            return []
+        
         #We check to see if file is too large 
         if self.detect_large(url_obj, resp):
             return []
@@ -287,6 +289,9 @@ class Scraper:
 
             #Checks and counts how many subdomains are in uci.domain
             self.subdomain_checker(url_obj)
+
+            # Add to seen_urls/no frag
+            self.seen_urls.add(Link_)
 
         except Exception as e:
             print(f"Error processing {url}: {e}")
