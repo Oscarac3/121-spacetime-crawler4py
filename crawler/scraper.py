@@ -213,13 +213,13 @@ class Scraper:
         if url.in_domain("uci.edu"):
             self.subdomain_freq[url.subdomain] = self.subdomain_freq.get(url.subdomain, 0) + 1 
             
-    def return_longest_page(self):
+    def get_longest_page(self):
         return self.longest_url, self.highest_word_count
     
-    def return_uniquePages_num(self):
+    def get_uniquePages_num(self):
         return len(self.seen_urls)
     
-    def return_subdomain_freq(self):
+    def get_subdomain_freq(self):
         sorted_freq = sorted(self.subdomain_freq.items())
         return sorted_freq
     

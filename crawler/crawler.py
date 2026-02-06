@@ -1,5 +1,6 @@
+import time
+from tqdm import tqdm
 from typing import List
-
 from .worker import Worker, ThreadedWorker
 from .frontier import Frontier, ThreadedFrontier
 from utils import get_logger, Config
@@ -20,8 +21,27 @@ class Crawler(object):
         for worker in self.workers:
             worker.start()
 
+    def view_progress(self):
+        frontier : ThreadedFrontier = self.frontier
+        with tqdm(total=frontier.total_count, unit="it") as pbar:
+            last_val = 0
+            while frontier.completed_count < frontier.total_count:
+                # update the goal if it changed externally
+                if pbar.total != frontier.total_count:
+                    pbar.total = frontier.total_count
+                    pbar.refresh()
+                # update the bar based on the delta
+                current_val = frontier.completed_count
+                delta = current_val - last_val
+                if delta > 0:
+                    pbar.update(delta)
+                    last_val = current_val                   
+                time.sleep(0.1)
+            pbar.update(frontier.total_count - last_val)
+
     def start(self):
         self.start_async()
+        self.view_progress()
         self.join()
 
     def join(self):

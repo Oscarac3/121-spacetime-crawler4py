@@ -109,8 +109,11 @@ class ThreadedFrontier(object):
         # min-Heap of tuples: (next_available_timestamp, domain)
         self.domain_heap = []
         self.domains_in_heap = set()
-
         self.entry_count = 0 
+
+        # For viewing
+        self.total_count = 0
+        self.completed_count = 0
 
         self._init_frontier(restart)
     
@@ -153,6 +156,8 @@ class ThreadedFrontier(object):
                         tbd_count += 1
                         max_entry_count = max(max_entry_count, count)
             self.entry_count = max_entry_count
+            self.total_count = total_count
+            self.completed_count = total_count - tbd_count
         self.logger.info(
             f"Found {tbd_count} urls to be downloaded from {total_count} "
             f"total urls discovered.")
@@ -205,6 +210,7 @@ class ThreadedFrontier(object):
                 if entry_count is None:
                     self.entry_count += 1
                     entry_count = self.entry_count
+                self.total_count += 1
                 self.save[urlhash] = (url, False, score, entry_count)
                 self.save.sync()
                 self._add_to_memory(url, score, entry_count)
@@ -216,6 +222,7 @@ class ThreadedFrontier(object):
         # downloaded again.
         urlhash = get_urlhash(url)
         with self.lock:
+            self.completed_count += 1
             if urlhash not in self.save:
                 self.logger.error(f"Completed url {url}, but have not seen it before. wtf")
                 return
