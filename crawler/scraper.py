@@ -58,7 +58,7 @@ class Scraper:
         self.unique_pages = 0
         # Top 50 most common words across all pages (after removing stop words: https://www.ranks.nl/stopwords)
         self.word_freq = {}
-        stop_words = {
+        self.stop_words = {
                         "a", "about", "above", "after", "again", "against", "all", "am", "an", "and", 
                         "any", "are", "aren't", "as", "at", "be", "because", "been", "before", 
                         "being", "below", "between", "both", "but", "by", "can't", "cannot", "could", 
@@ -89,6 +89,10 @@ class Scraper:
         return [link for link in links if self.is_valid(link)]
 
     #TODO
+    def tokenize(self, text: str):
+        #Tokenizes the text removing non alphanumeric chars
+        return re.findall(r'[a-zA-Z0-9]+', text.lower())
+
     def detect_trap(self, url : str, resp : Response):
         '''
         Detect and avoid infinite traps. 
@@ -145,6 +149,19 @@ class Scraper:
             return True
 
         return False
+
+    def word_frequencies(self, words: list):
+        for token in words:
+            if token in self.stop_words:
+                continue
+            if token in self.word_freq:
+                self.word_freq[token] += 1
+            else:
+                self.word_freq[token] = 1
+            
+    def fifty_most_freq_words(self):
+        sorted_words = sorted(self.word_counts.items(), key=lambda x: x[1], reverse=True)
+        return sorted_words[:50]
 
     #TODO
     def extract_next_links(self, url : str, resp : Response):
