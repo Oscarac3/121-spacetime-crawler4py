@@ -83,10 +83,10 @@ class Scraper:
                     "you'll", "you're", "you've", "your", "yours", "yourself", "yourselves"
                     }
 
-# Quick check example
-word_to_check = "against"
-if word_to_check in stop_words:
-    print(f"'{word_to_check}' is in the set!")
+        # Quick check example
+        word_to_check = "against"
+        if word_to_check in stop_words:
+            print(f"'{word_to_check}' is in the set!")
         
         # Number of unique pages found (not including fragments)
         self.unique_pages = 0
