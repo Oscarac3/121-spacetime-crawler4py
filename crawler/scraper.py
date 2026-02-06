@@ -149,6 +149,20 @@ class Scraper:
         #Passed all tests 
         return False 
 
+    def detect_is_valid_trap(self, parsed_path):
+        path = parsed_path.path.lower()
+        path_components = path.strip('/').split('/')
+        if len(path_components) != len((set(path_components))):
+            return False
+        
+        if "calendar" in path or "events" in path:
+            return False
+
+        if path.count("/") > 6:
+            return False
+
+        return True
+
 
 
     #TODO
@@ -240,6 +254,12 @@ class Scraper:
         # ----------------- Our code starts here -----------------
         if resp.status != 200 or resp.raw_response is None:
             return []
+
+        url_obj = URL(url)
+        
+        #We check to see if file is too large 
+        if self.detect_large(url_obj, resp):
+            return []
         
         try:
             bs_obj = BeautifulSoup(resp.raw_response.content, "lxml")
@@ -249,8 +269,6 @@ class Scraper:
 
             # Run checks for traps, similar pages, and large files
             if self.detect_trap(url_obj, resp):
-                return []
-            if self.detect_large(url_obj, resp):
                 return []
 
             #TOKENIZE WORDS
@@ -269,7 +287,7 @@ class Scraper:
 
             #Checks and counts how many subdomains are in uci.domain
             self.subdomain_checker(url_obj)
-            
+
         except Exception as e:
             print(f"Error processing {url}: {e}")
             return []
@@ -291,6 +309,11 @@ class Scraper:
         # There are already some conditions that return False.
         try:
             parsed = urlparse(url)
+
+            #We check to see if the url structure is a trap or not
+            if self.detect_is_valid_trap(parsed) == False:
+                return False
+
             if parsed.scheme not in set(["http", "https"]):
                 return False
 
