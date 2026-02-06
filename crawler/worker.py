@@ -3,7 +3,7 @@ from threading import Thread
 from inspect import getsource
 
 #TODO: Rework scraper to be thread safe and have global variables rather than instance.
-from . import scraper, Frontier
+from . import scraper, Frontier, ThreadedFrontier
 from utils import get_logger, download, Config
 
 class Worker(Thread):
@@ -40,15 +40,20 @@ Handle multi-threaded politeness (separate universal time delay per domain?)
 '''
 
 class ThreadedWorker(Thread): # Worker must inherit from Thread or Process.
-    def __init__(self, worker_id, config, frontier):
-        # worker_id -> a unique id for the worker to self identify.
-        # config -> Config object (defined in utils/config.py L1)
-        #           Note that the cache server is already defined at this
-        #           point.
-        # frontier -> Frontier object created by the Crawler. Base reference
-        #           is shown in utils/frontier.py L10 but can be overloaded
-        #           as detailed above.
+    def __init__(self, worker_id : int, config : Config, frontier : ThreadedFrontier):
+        '''
+        worker_id -> a unique id for the worker to self identify.
+        config -> Config object (defined in utils/config.py L1)
+                  Note that the cache server is already defined at this
+                  point.
+        frontier -> Frontier object created by the Crawler. Base reference
+                  is shown in utils/frontier.py L10 but can be overloaded
+                  as detailed above.
+        '''
+        self.worker_id = worker_id
         self.config = config
+        self.frontier = frontier
+        self.logger = get_logger(f"Worker-{worker_id}", "Worker")
         super().__init__(daemon=True)
 
     def run(self):
@@ -60,4 +65,18 @@ class ThreadedWorker(Thread): # Worker must inherit from Thread or Process.
             > add next_links to frontier
             > sleep for self.config.time_delay
         '''
+        while True:
+            # blocks until a URL is ready (politeness handled by Frontier)
+            tbd_url = self.frontier.get_tbd_url()
+            if not tbd_url:
+                self.logger.info("Frontier is empty. Stopping Worker.")
+                break
+            resp = download(tbd_url, self.config, self.logger)
+            self.logger.info(
+                f"Downloaded {tbd_url}, status <{resp.status}>, "
+                f"using cache {self.config.cache_server}.")
+            scraped_urls = scraper.scraper(tbd_url, resp)
+            for scraped_url, score in scraped_urls:
+                self.frontier.add_url(scraped_url, score)
+            self.frontier.mark_url_complete(tbd_url)
         pass
