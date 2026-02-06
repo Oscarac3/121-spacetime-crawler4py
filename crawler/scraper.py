@@ -116,7 +116,13 @@ class Scraper:
         For example, a page that has a lot of images, but no text.
         Return True if you think this is a large file, False otherwise.
         '''
-        pass
+        if not resp.raw_response or not resp.raw_response.content:
+            return False
+        
+        if len(resp.raw_response.content) > 5 * 1024 * 1024: #5MB
+            return True
+
+        return False
 
     #TODO
     def extract_next_links(self, url : str, resp : Response):
