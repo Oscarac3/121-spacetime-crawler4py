@@ -53,7 +53,7 @@ class Scraper:
         self.seen_near_content_hashes = set()
         
         # Stats for report
-        #unique pages
+        #unique
         self.visited_urls = set()
         #stats for the longest page
         self.longest_page_url = ""
