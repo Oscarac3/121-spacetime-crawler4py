@@ -47,7 +47,7 @@ class URL:
 class Scraper:
 
     def __init__(self):
-        # includes all the urls we have seen so far (with fragments), to avoid crawling the same url twice.
+        # includes all the urls we have seen so far (no fragments), to avoid crawling the same url twice.
         self.seen_urls = set()
         # stores the raw content hash (lecture 11) of the pages we have seen, to detect exact duplicates with different urls.
         self.seen_exact_content_hashes = set()
@@ -57,7 +57,7 @@ class Scraper:
         # Stats for report
 
         # Number of unique pages found (not including fragments)
-        self.unique_pages = 0
+        #self.unique_pages = 0 # not neaded just len(self.urls)
         # Top 50 most common words across all pages (after removing stop words: https://www.ranks.nl/stopwords)
         self.word_freq = {}
         self.stop_words = {
@@ -188,10 +188,24 @@ class Scraper:
             if word_count > self.highest_word_count:
                 self.highest_word_count = word_count
                 self.longest_url = url
-                
+    
+    def subdomain_checker(self, url: str):
+        link, frag = urldefrag(url)
+        parsed = urlparse(link)
+        host = parsed.hostname
+        if host and host.endswith("uci.edu"):
+            self.subdomain_freq[host] = self.subdomain_freq.get(host, 0) + 1 
+            
     def return_longest_page(self):
         return self.longest_url, self.highest_word_count
-
+    
+    def return_uniquePages_num(self):
+        return len(self.seen_urls)
+    
+    def return_subdomain_freq(self):
+        sorted_freq = sorted(self.subdomain_freq.items())
+        return sorted_freq
+    
     #TODO
     def extract_next_links(self, url : str, resp : Response):
         '''
@@ -210,7 +224,7 @@ class Scraper:
         '''
         1. Detect and avoid dead URLs that return a 200 status but no data (DONE; Untested)
         '''
-
+        
         # ----------------- Our code starts here -----------------
         if resp.status != 200 or resp.raw_response is None:
             return []
@@ -257,12 +271,7 @@ class Scraper:
             if parsed.scheme not in set(["http", "https"]):
                 return False
             
-            #TODO:
-            '''
-            2. Detect and avoid infinite traps (detect_trap)
-            3. Detect and avoid sets of similar pages with no information (detect_similar)
-            4. Detect and avoid crawling very large files, especially if they have low information value (detect_large)
-            '''
+            
 
             # ----------------- Our code starts here -----------------
 
@@ -290,3 +299,4 @@ class Scraper:
         except TypeError:
             print ("TypeError for ", parsed)
             raise
+        
