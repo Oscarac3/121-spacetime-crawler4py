@@ -55,11 +55,7 @@ class Scraper:
         # Stats for report
         #unique
         self.visited_urls = set()
-        #stats for the longest page
-        self.longest_page_url = ""
-        self.longest_page_words = 0
-        #Word counts
-        self.word_counts = {}
+        
         
         
         # Number of unique pages found (not including fragments)
