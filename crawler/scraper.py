@@ -266,6 +266,10 @@ class Scraper:
 
             #Update for longest Page
             self.update_longest_page(url_obj, len(words))
+
+            #Checks and counts how many subdomains are in uci.domain
+            self.subdomain_checker(url_obj)
+            
         except Exception as e:
             print(f"Error processing {url}: {e}")
             return []
