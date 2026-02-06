@@ -125,14 +125,13 @@ class Scraper:
         #Tokenizes the text removing non alphanumeric chars
         return re.findall(r'[a-zA-Z0-9]+', text.lower())
 
-    def detect_trap(self, url : URL, resp : Response):
+    def detect_trap(self, url : URL ):
         '''
         Detect and avoid infinite traps. 
         For example, a calendar page that has links to the next day, which has links to the next day, and so on.
         Return True if you think this is a trap, False otherwise.
         '''
         # calenders, large paths
-        
         
         path = url._parsed.path
         query = url._parsed.query
@@ -270,7 +269,7 @@ class Scraper:
             url_obj = URL(url)
 
             # Run checks for traps, similar pages, and large files
-            if self.detect_trap(url_obj, resp):
+            if self.detect_trap(url_obj):
                 return []
 
             #TOKENIZE WORDS
