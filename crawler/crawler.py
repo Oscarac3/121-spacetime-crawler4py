@@ -1,14 +1,16 @@
-from .worker import Worker
-from .frontier import Frontier
+from typing import List
 
+from .worker import Worker, ThreadedWorker
+from .frontier import Frontier, ThreadedFrontier
 from utils import get_logger, Config
 
+#TODO: When the worker and frontier are threadsafe, replace the factory defaults with the threaded versions.
 class Crawler(object):
     def __init__(self, config : Config, restart : bool, frontier_factory=Frontier, worker_factory=Worker):
         self.config = config
         self.logger = get_logger("CRAWLER")
         self.frontier = frontier_factory(config, restart)
-        self.workers = list()
+        self.workers : List[Worker] = []
         self.worker_factory = worker_factory
 
     def start_async(self):

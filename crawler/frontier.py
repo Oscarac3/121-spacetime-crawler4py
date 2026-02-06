@@ -71,3 +71,34 @@ class Frontier(object):
 
         self.save[urlhash] = (url, True)
         self.save.sync()
+
+#TODO:
+'''
+Make the frontier thread safe (replace the frontier list with a priority queue (threadsafe builtin) and use some locks).
+Most of it can be copy paste of above.
+'''
+
+class ThreadedFrontier:
+    def __init__(self, config, restart):
+        #Initializer.
+        # config -> Config object (defined in utils/config.py L1)
+        #           Note that the cache server is already defined at this
+        #           point.
+        # restart -> A bool that is True if the crawler has to restart
+        #           from the seed url and delete any current progress.
+        pass
+
+    def get_tbd_url(self):
+        # Get one url that has to be downloaded.
+        # Can return None to signify the end of crawling.
+        pass
+
+    def add_url(self, url):
+        # Adds one url to the frontier to be downloaded later.
+        # Checks can be made to prevent downloading duplicates.
+        pass
+    
+    def mark_url_complete(self, url):
+        # mark a url as completed so that on restart, this url is not
+        # downloaded again.
+        pass

@@ -31,3 +31,33 @@ class Worker(Thread):
                 self.frontier.add_url(scraped_url)
             self.frontier.mark_url_complete(tbd_url)
             time.sleep(self.config.time_delay)
+
+
+#TODO:
+'''
+Make the worker thread safe.
+Handle multi-threaded politeness (separate universal time delay per domain?)
+'''
+
+class ThreadedWorker(Thread): # Worker must inherit from Thread or Process.
+    def __init__(self, worker_id, config, frontier):
+        # worker_id -> a unique id for the worker to self identify.
+        # config -> Config object (defined in utils/config.py L1)
+        #           Note that the cache server is already defined at this
+        #           point.
+        # frontier -> Frontier object created by the Crawler. Base reference
+        #           is shown in utils/frontier.py L10 but can be overloaded
+        #           as detailed above.
+        self.config = config
+        super().__init__(daemon=True)
+
+    def run(self):
+        '''
+        In loop:
+            > url = get one undownloaded link from frontier.
+            > resp = download(url, self.config)
+            > next_links = scraper(url, resp)
+            > add next_links to frontier
+            > sleep for self.config.time_delay
+        '''
+        pass
