@@ -1,11 +1,14 @@
 import re
-import data_collector
 from utils import Response
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin, urldefrag
 import threading
 
+from typing import Set, Dict, Tuple
+from dataclasses import dataclass
+
 '''
+#TODO: Handle these
 Server Cache status codes
 These are all the cache server error codes:
 
@@ -30,34 +33,58 @@ These are all the cache server error codes:
 You may ignore some of them, but not all.
 
 '''
+@dataclass
+class Link:
+    url: str
+    score: float = 0
 
 class URL:
     def __init__(self, url : str):
-        self.url = url
-        self.parsed = urlparse(url)
+        self.url = url.lower()
+        self._parsed = urlparse(self.url)
         self.page = self.__get_page()
         self.subdomain = self.__get_subdomain()
 
-    def __get_page(self):
-        return self.parsed.path
+    def __hash__(self):
+        return hash(self.page)
     
-    def __get_subdomain(self):
-        return self.parsed.netloc
+    def __str__(self):
+        return self.url
+    
+    def in_domain(self, domain : str) -> bool:
+        return self.subdomain and self.subdomain.endswith(domain)
+
+    def __get_page(self) -> str:
+        '''
+        Returns full URL discarding everything after the page
+        '''
+        path = self._parsed.path
+        if path.endswith("/"):
+            path = path[:-1]
+        return self._parsed.scheme + "://" + self._parsed.netloc + path
+    
+    def __get_subdomain(self) -> str:
+        '''
+        Returns the full subdomain of the URL, including the domain.
+        '''
+        return self._parsed.scheme + "://" + self._parsed.hostname
+        
 
 class Scraper:
 
     def __init__(self):
         # includes all the urls we have seen so far (no fragments), to avoid crawling the same url twice.
-        self.seen_urls = set()
+        self.seen_urls : Set[URL] = set()
         # stores the raw content hash (lecture 11) of the pages we have seen, to detect exact duplicates with different urls.
         self.seen_exact_content_hashes = set()
         # stores simhash (lecture 11) with a threshold of 90% similarity, to detect similar pages with different urls.
         self.seen_near_content_hashes = set()
         
+        # Thread safety lock
+        self.lock = threading.Lock()
+
         # Stats for report
 
-        # Number of unique pages found (not including fragments)
-        #self.unique_pages = 0 # not neaded just len(self.urls)
         # Top 50 most common words across all pages (after removing stop words: https://www.ranks.nl/stopwords)
         self.word_freq = {}
         self.stop_words = {
@@ -86,21 +113,19 @@ class Scraper:
         self.subdomain_freq = {}
 
         #Longest page variables
-        self.longest_url = ""
+        self.longest_url = None
         self.highest_word_count = 0
-        self.stats_lock = threading.Lock()
-        pass
 
-    def scraper(self, url : str, resp : Response):
+    def scrape(self, url : str, resp : Response):
         links = self.extract_next_links(url, resp)
         return [link for link in links if self.is_valid(link)]
 
-    #TODO
+    #TODO verify?
     def tokenize(self, text: str):
         #Tokenizes the text removing non alphanumeric chars
         return re.findall(r'[a-zA-Z0-9]+', text.lower())
 
-    def detect_trap(self, url : str, resp : Response):
+    def detect_trap(self, url : URL, resp : Response):
         '''
         Detect and avoid infinite traps. 
         For example, a calendar page that has links to the next day, which has links to the next day, and so on.
@@ -116,9 +141,8 @@ class Scraper:
         if len(page_text.split()) < 75:
             return True
         
-        parsed_url = urlparse(url.lower())
-        path = parsed_url.path
-        query = parsed_url.query
+        path = url._parsed.path
+        query = url._parsed.query
         if any(trap in path for trap in ["calendar", 'events'] ):
             return True 
         if any(trap in query for trap in ["day=", "month=", "year="]):
@@ -132,7 +156,7 @@ class Scraper:
 
 
     #TODO
-    def detect_similar(self, url : str, resp : Response):
+    def detect_similar(self, url : URL, resp : Response) -> bool:
         '''
         Detect and avoid sets of similar pages. 
         For example, a page that has links to the same page with different parameters, but the content is the same.
@@ -143,7 +167,7 @@ class Scraper:
         pass
 
     #TODO
-    def detect_large(self, url : str, resp : Response):
+    def detect_large(self, url : URL, resp : Response) -> bool:
         '''
         Detect and avoid crawling very large files, especially if they have low information value. 
         For example, a page that has a lot of images, but no text.
@@ -157,9 +181,9 @@ class Scraper:
 
         return False
 
-    def low_info_checker(self, url:str, resp, word_count):
+    def detect_low_info(self, url : URL, resp : Response, word_count : int) -> bool:
         if not resp.raw_response or not resp.raw_response.content:
-            return False
+            return True
 
         file_size = len(resp.raw_response.content)
         if file_size >  1024 * 1024 and word_count < 200: #1MB
@@ -167,34 +191,27 @@ class Scraper:
 
         return False
 
-    def word_frequencies(self, words: list):
+    def update_word_freq(self, words: list):
         for token in words:
             if token in self.stop_words:
                 continue
-            if token in self.word_freq:
-                self.word_freq[token] += 1
-            else:
-                self.word_freq[token] = 1
+            self.word_freq[token] = self.word_freq.get(token, 0) + 1
             
     def fifty_most_freq_words(self):
         sorted_words = sorted(self.word_freq.items(), key=lambda x: x[1], reverse=True)
         return sorted_words[:50]
 
-    def update_longest_page(self, url, word_count):
+    def update_longest_page(self, url : URL, word_count : int):
         """
         Counts words in text & updates the longest page record if needed
         """
-        with self.stats_lock:
-            if word_count > self.highest_word_count:
-                self.highest_word_count = word_count
-                self.longest_url = url
+        if word_count > self.highest_word_count:
+            self.highest_word_count = word_count
+            self.longest_url = url
     
-    def subdomain_checker(self, url: str):
-        link, frag = urldefrag(url)
-        parsed = urlparse(link)
-        host = parsed.hostname
-        if host and host.endswith("uci.edu"):
-            self.subdomain_freq[host] = self.subdomain_freq.get(host, 0) + 1 
+    def subdomain_checker(self, url: URL):
+        if url.in_domain("uci.edu"):
+            self.subdomain_freq[url.subdomain] = self.subdomain_freq.get(url.subdomain, 0) + 1 
             
     def return_longest_page(self):
         return self.longest_url, self.highest_word_count
@@ -220,7 +237,6 @@ class Scraper:
         Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
         '''
         
-        #TODO:
         '''
         1. Detect and avoid dead URLs that return a 200 status but no data (DONE; Untested)
         '''
@@ -229,24 +245,24 @@ class Scraper:
         if resp.status != 200 or resp.raw_response is None:
             return []
         
-        # idk what this code is doing
         try:
             bs_obj = BeautifulSoup(resp.raw_response.content, "lxml")
             clean_text = bs_obj.get_text(separator=" ")
             
+            url_obj = URL(url)
             #TOKENIZE WORDS
             words = self.tokenize(clean_text)
             word_count = len(words)
             
             #Check for low info, like if page is > 1MB but has less than 200 words.
-            if self.low_info_checker(url, resp, word_count):
+            if self.detect_low_info(url_obj, resp, word_count):
                 return []
             
             #FIND WORDS COUNTS
-            self.word_frequencies(words)
+            self.update_word_freq(words)
 
             #Update for longest Page
-            self.update_longest_page(url, len(words))
+            self.update_longest_page(url_obj, len(words))
         except Exception as e:
             print(f"Error processing {url}: {e}")
             return []
@@ -270,8 +286,6 @@ class Scraper:
             parsed = urlparse(url)
             if parsed.scheme not in set(["http", "https"]):
                 return False
-            
-            
 
             # ----------------- Our code starts here -----------------
 
