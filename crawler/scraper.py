@@ -73,7 +73,30 @@ class Scraper:
         For example, a calendar page that has links to the next day, which has links to the next day, and so on.
         Return True if you think this is a trap, False otherwise.
         '''
-        pass
+        # low words, calenders, large paths
+        try:
+            bs_obj = BeautifulSoup(resp.raw_response.content, "lxml")
+        except Exception:
+            return True
+        
+        page_text = bs_obj.get_text(" ", strip = True)
+        if len(page_text.split()) < 75:
+            return True
+        
+        parsed_url = urlparse(url.lower())
+        path = parsed_url.path
+        query = parsed_url.query
+        if any(trap in path for trap in ["calendar", 'events'] ):
+            return True 
+        if any(trap in query for trap in ["day=", "month=", "year="]):
+            return True
+
+        if path.count("/") > 6:
+            return True
+        #Passed all tests 
+        return False 
+
+
 
     #TODO
     def detect_similar(self, url : str, resp : Response):
