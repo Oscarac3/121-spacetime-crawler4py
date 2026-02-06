@@ -161,7 +161,7 @@ class Scraper:
                 self.word_freq[token] = 1
             
     def fifty_most_freq_words(self):
-        sorted_words = sorted(self.word_counts.items(), key=lambda x: x[1], reverse=True)
+        sorted_words = sorted(self.word_freq.items(), key=lambda x: x[1], reverse=True)
         return sorted_words[:50]
 
     #TODO
@@ -191,6 +191,13 @@ class Scraper:
         try:
             bs_obj = BeautifulSoup(resp.raw_response.content, "lxml")
             clean_text = bs_obj.get_text(separator=" ")
+            
+            #TOKENIZE WORDS
+            words = self.tokenize(clean_text)
+            
+            #FIND WORDS COUNTS
+            self.word_freq(words)
+
             data_collector.update_longest_page(url, clean_text)
         except Exception as e:
             print(f"Error processing {url}: {e}")
