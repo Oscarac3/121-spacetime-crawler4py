@@ -3,6 +3,7 @@ import data_collector
 from utils import Response
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin, urldefrag
+import threading
 
 '''
 Server Cache status codes
@@ -83,6 +84,11 @@ class Scraper:
                 }
         # Subdomains found and their frequencies (needs to be converted to an alphabetically sorted list of "subdomain, frequency" for the report)
         self.subdomain_freq = {}
+
+        #Longest page variables
+        self.longest_url = ""
+        self.highest_word_count = 0
+        self.stats_lock = threading.Lock()
         pass
 
     def scraper(self, url : str, resp : Response):
@@ -151,6 +157,16 @@ class Scraper:
 
         return False
 
+    def low_info_checker(self, url:str, resp, word_count):
+        if not resp.raw_response or not resp.raw_response.content:
+            return False
+
+        file_size = len(resp.raw_response.content)
+        if file_size >  1024 * 1024 and word_count < 200: #1MB
+            return True
+
+        return False
+
     def word_frequencies(self, words: list):
         for token in words:
             if token in self.stop_words:
@@ -163,6 +179,18 @@ class Scraper:
     def fifty_most_freq_words(self):
         sorted_words = sorted(self.word_freq.items(), key=lambda x: x[1], reverse=True)
         return sorted_words[:50]
+
+    def update_longest_page(self, url, word_count):
+        """
+        Counts words in text & updates the longest page record if needed
+        """
+        with self.stats_lock:
+            if word_count > self.highest_word_count:
+                self.highest_word_count = word_count
+                self.longest_url = url
+                
+    def return_longest_page(self):
+        return self.longest_url, self.highest_word_count
 
     #TODO
     def extract_next_links(self, url : str, resp : Response):
@@ -194,11 +222,17 @@ class Scraper:
             
             #TOKENIZE WORDS
             words = self.tokenize(clean_text)
+            word_count = len(words)
+            
+            #Check for low info, like if page is > 1MB but has less than 200 words.
+            if self.low_info_checker(url, resp, word_count):
+                return []
             
             #FIND WORDS COUNTS
-            self.word_freq(words)
+            self.word_frequencies(words)
 
-            data_collector.update_longest_page(url, clean_text)
+            #Update for longest Page
+            self.update_longest_page(url, len(words))
         except Exception as e:
             print(f"Error processing {url}: {e}")
             return []
