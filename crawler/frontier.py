@@ -1,5 +1,6 @@
 import os
 import shelve
+from typing import List
 
 from threading import Thread, RLock
 from queue import Queue, Empty
@@ -11,7 +12,7 @@ class Frontier(object):
     def __init__(self, config : Config, restart : bool):
         self.logger = get_logger("FRONTIER")
         self.config = config
-        self.to_be_downloaded = list()
+        self.to_be_downloaded : List[str] = []
         
         if not os.path.exists(self.config.save_file) and not restart:
             # Save file does not exist, but request to load save.
@@ -53,7 +54,7 @@ class Frontier(object):
         except IndexError:
             return None
 
-    def add_url(self, url):
+    def add_url(self, url : str):
         url = normalize(url)
         urlhash = get_urlhash(url)
         if urlhash not in self.save:
@@ -61,7 +62,7 @@ class Frontier(object):
             self.save.sync()
             self.to_be_downloaded.append(url)
     
-    def mark_url_complete(self, url):
+    def mark_url_complete(self, url : str):
         urlhash = get_urlhash(url)
         if urlhash not in self.save:
             # This should not happen.

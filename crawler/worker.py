@@ -4,8 +4,7 @@ from inspect import getsource
 
 
 from . import scraper, Frontier
-from utils.download import download
-from utils import get_logger, Config
+from utils import get_logger, download, Config
 
 class Worker(Thread):
     def __init__(self, worker_id, config : Config, frontier : Frontier):

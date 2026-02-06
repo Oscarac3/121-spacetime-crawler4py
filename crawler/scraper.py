@@ -1,4 +1,5 @@
 import re
+from utils import Response
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin, urldefrag
 
@@ -7,7 +8,7 @@ def scraper(url, resp):
     links = extract_next_links(url, resp)
     return [link for link in links if is_valid(link)]
 
-def extract_next_links(url, resp):
+def extract_next_links(url : str, resp : Response):
     '''
     Implementation required.
     url: the URL that was used to get the page
@@ -35,7 +36,7 @@ def extract_next_links(url, resp):
 
     return list(total_links)
 
-def is_valid(url):
+def is_valid(url : str):
     # Decide whether to crawl this url or not. 
     # If you decide to crawl it, return True; otherwise return False.
     # There are already some conditions that return False.

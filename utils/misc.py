@@ -3,7 +3,7 @@ import logging
 from hashlib import sha256
 from urllib.parse import urlparse
 
-def get_logger(name, filename=None):
+def get_logger(name : str, filename : str | None = None) -> logging.Logger:
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
     if not os.path.exists("Logs"):
@@ -22,14 +22,14 @@ def get_logger(name, filename=None):
     return logger
 
 
-def get_urlhash(url):
+def get_urlhash(url : str) -> str:
     parsed = urlparse(url)
     # everything other than scheme.
     return sha256(
         f"{parsed.netloc}/{parsed.path}/{parsed.params}/"
         f"{parsed.query}/{parsed.fragment}".encode("utf-8")).hexdigest()
 
-def normalize(url):
+def normalize(url : str) -> str:
     if url.endswith("/"):
         return url.rstrip("/")
     return url

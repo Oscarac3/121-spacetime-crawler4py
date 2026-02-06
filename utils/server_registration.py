@@ -1,5 +1,6 @@
 import os
 from spacetime import Node
+from .config import Config
 from .pcc_models import Register
 
 def init(df, user_agent, fresh):
@@ -19,7 +20,7 @@ def init(df, user_agent, fresh):
             df.push()
     return reg.load_balancer
 
-def get_cache_server(config, restart):
+def get_cache_server(config : Config, restart):
     init_node = Node(
         init, Types=[Register], dataframe=(config.host, config.port))
     return init_node.start(

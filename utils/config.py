@@ -1,8 +1,8 @@
 import re
-
+from typing import Dict
 
 class Config(object):
-    def __init__(self, config):
+    def __init__(self, config : Dict[str, Dict[str, str]]):
         self.user_agent = config["IDENTIFICATION"]["USERAGENT"].strip()
         print (self.user_agent)
         assert self.user_agent != "DEFAULT AGENT", "Set useragent in config.ini"

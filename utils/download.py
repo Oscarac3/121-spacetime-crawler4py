@@ -1,10 +1,11 @@
-import requests
-import cbor
 import time
-
+import cbor
+import requests
+from logging import Logger
+from .config import Config
 from .response import Response
 
-def download(url, config, logger=None):
+def download(url, config : Config, logger : Logger):
     host, port = config.cache_server
     resp = requests.get(
         f"http://{host}:{port}/",

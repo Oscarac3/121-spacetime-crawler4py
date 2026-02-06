@@ -1,12 +1,9 @@
-from configparser import ConfigParser
-from argparse import ArgumentParser
-
-from utils.server_registration import get_cache_server
-from utils.config import Config
 from crawler import Crawler
+from argparse import ArgumentParser
+from configparser import ConfigParser
+from utils import Config, get_cache_server
 
-
-def main(config_file, restart):
+def main(config_file : str, restart : bool):
     cparser = ConfigParser()
     cparser.read(config_file)
     config = Config(cparser)
