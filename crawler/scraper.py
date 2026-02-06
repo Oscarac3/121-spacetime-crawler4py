@@ -137,10 +137,6 @@ class Scraper:
         except Exception:
             return True
         
-        page_text = bs_obj.get_text(" ", strip = True)
-        if len(page_text.split()) < 75:
-            return True
-        
         path = url._parsed.path
         query = url._parsed.query
         if any(trap in path for trap in ["calendar", 'events'] ):
@@ -250,6 +246,13 @@ class Scraper:
             clean_text = bs_obj.get_text(separator=" ")
             
             url_obj = URL(url)
+
+            # Run checks for traps, similar pages, and large files
+            if self.detect_trap(url_obj, resp):
+                return []
+            if self.detect_large(url_obj, resp):
+                return []
+
             #TOKENIZE WORDS
             words = self.tokenize(clean_text)
             word_count = len(words)
