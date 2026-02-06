@@ -1,38 +1,42 @@
 import os
 import shelve
-from typing import List
+from typing import List, Dict, Tuple
 
-from threading import Thread, RLock
+import time
+import heapq
+from urllib.parse import urlparse
+from collections import defaultdict
 from queue import Queue, Empty
+from threading import Thread, RLock, Condition
+
 
 from utils import get_logger, get_urlhash, normalize, Config
-from scraper import is_valid
+from scraper import is_valid #TODO: Fix
 
 class Frontier(object):
     def __init__(self, config : Config, restart : bool):
         self.logger = get_logger("FRONTIER")
         self.config = config
         self.to_be_downloaded : List[str] = []
-        
+        self._init_frontier(restart)
+
+    def _init_frontier(self, restart : bool):
         if not os.path.exists(self.config.save_file) and not restart:
-            # Save file does not exist, but request to load save.
             self.logger.info(
                 f"Did not find save file {self.config.save_file}, "
                 f"starting from seed.")
         elif os.path.exists(self.config.save_file) and restart:
-            # Save file does exists, but request to start from seed.
             self.logger.info(
                 f"Found save file {self.config.save_file}, deleting it.")
             os.remove(self.config.save_file)
-        # Load existing save file, or create one if it does not exist.
         self.save = shelve.open(self.config.save_file)
         if restart:
             for url in self.config.seed_urls:
                 self.add_url(url)
         else:
-            # Set the frontier state with contents of save file.
-            self._parse_save_file()
-            if not self.save:
+            if self.save:
+                self._parse_save_file()
+            else:
                 for url in self.config.seed_urls:
                     self.add_url(url)
 
@@ -76,29 +80,145 @@ class Frontier(object):
 '''
 Make the frontier thread safe (replace the frontier list with a priority queue (threadsafe builtin) and use some locks).
 Most of it can be copy paste of above.
+Notes:
+ - Frontier is singular and shared between workers
+ - We can use a PQ for the frontier
+    - what is priority?
+    - each worker must be on a different domain at a time, how to skip higher priority urls that are on the same domain as the current url?
+ - locks for the save file
+ 
 '''
 
-class ThreadedFrontier:
-    def __init__(self, config, restart):
-        #Initializer.
-        # config -> Config object (defined in utils/config.py L1)
-        #           Note that the cache server is already defined at this
-        #           point.
-        # restart -> A bool that is True if the crawler has to restart
-        #           from the seed url and delete any current progress.
-        pass
+class ThreadedFrontier(object):
+    def __init__(self, config : Config, restart : bool):
+        '''
+        config -> Config object (defined in utils/config.py L1)
+                  Note that the cache server is already defined at this
+                  point.
+        restart -> A bool that is True if the crawler has to restart
+                  from the seed url and delete any current progress.
+        '''
+        self.logger = get_logger("ThreadedFrontier")
+        self.config = config
+        
+        self.lock = RLock()
+        self.cv = Condition(self.lock)
+        
+        # {domain : [(value, count, url), ...]} where value is the information value and count is like a timestamp to break ties
+        self.domain_queues : Dict[List[Tuple[int, int, str]]] = defaultdict(list)
+        # min-Heap of tuples: (next_available_timestamp, domain)
+        self.domain_heap = []
+        self.domains_in_heap = set()
 
-    def get_tbd_url(self):
+        self.entry_count = 0 
+
+        self._init_frontier(restart)
+    
+    def _get_domain(self, url : str) -> str:
+        return urlparse(url).netloc
+
+    def _init_frontier(self, restart : bool) -> None:
+        if not os.path.exists(self.config.save_file) and not restart:
+            self.logger.info(
+                f"Did not find save file {self.config.save_file}, "
+                f"starting from seed.")
+        elif os.path.exists(self.config.save_file) and restart:
+            self.logger.info(
+                f"Found save file {self.config.save_file}, deleting it.")
+            os.remove(self.config.save_file)
+        self.save = shelve.open(self.config.save_file)
+        if restart:
+            for url in self.config.seed_urls:
+                self.add_url(url)
+        else:
+            if self.save:
+                self._parse_save_file()
+            else:
+                for url in self.config.seed_urls:
+                    self.add_url(url)
+    
+    def _parse_save_file(self) -> None:
+        ''' This function can be overridden for alternate saving techniques. '''
+        total_count = len(self.save)
+        tbd_count = 0
+        max_entry_count = 0
+        with self.lock:
+            for urlhash, data in self.save.items():
+                if len(data) == 2:
+                    url, completed = data
+                else:
+                    url, completed, score, count = data
+                    if is_valid(url): #TODO: Fix
+                        self._add_to_memory(url, count, score)
+                        tbd_count += 1
+                        max_entry_count = max(max_entry_count, count)
+            self.entry_count = max_entry_count
+        self.logger.info(
+            f"Found {tbd_count} urls to be downloaded from {total_count} "
+            f"total urls discovered.")
+        
+    def _add_to_memory(self, url, entry_count, score=0) -> None:
+        ''' Internal helper to add URL to queues and heap. Assumes lock held. '''
+        domain = self._get_domain(url)
+        heapq.heappush(self.domain_queues[domain], (-score, entry_count, url))
+        
+        if domain not in self.domains_in_heap:
+            heapq.heappush(self.domain_heap, (time.time(), domain))
+            self.domains_in_heap.add(domain)
+
+    def get_tbd_url(self) -> str | None:
         # Get one url that has to be downloaded.
         # Can return None to signify the end of crawling.
-        pass
+        with self.lock:
 
-    def add_url(self, url):
+            while True:
+                if not self.domain_heap:
+                    return None
+                next_time, domain = self.domain_heap[0]
+                now = time.time()                
+                if now >= next_time:
+                    heapq.heappop(self.domain_heap)
+                    if domain in self.domain_queues and self.domain_queues[domain]:
+                        _, _, url = heapq.heappop(self.domain_queues[domain])
+                        new_next_time = time.time() + 0.5
+                        if self.domain_queues[domain]:
+                            heapq.heappush(self.domain_heap, (new_next_time, domain))
+                        else:
+                            self.domains_in_heap.remove(domain)
+                            del self.domain_queues[domain]
+                        return url
+                    else:
+                        if domain in self.domains_in_heap:
+                            self.domains_in_heap.remove(domain)
+                        continue
+                else:
+                    wait_time = next_time - now
+                    self.cv.wait(timeout=wait_time)
+
+    def add_url(self, url, score : int = 0, entry_count : int | None = None) -> None:
         # Adds one url to the frontier to be downloaded later.
         # Checks can be made to prevent downloading duplicates.
-        pass
+        url = normalize(url)
+        urlhash = get_urlhash(url)
+        with self.lock:
+            if urlhash not in self.save:
+                if entry_count is None:
+                    self.entry_count += 1
+                    entry_count = self.entry_count
+                self.save[urlhash] = (url, False, score, entry_count)
+                self.save.sync()
+                self._add_to_memory(url, score, entry_count)
+                # notify workers
+                self.cv.notify()
     
-    def mark_url_complete(self, url):
+    def mark_url_complete(self, url : str) -> None:
         # mark a url as completed so that on restart, this url is not
         # downloaded again.
+        urlhash = get_urlhash(url)
+        with self.lock:
+            if urlhash not in self.save:
+                self.logger.error(f"Completed url {url}, but have not seen it before. wtf")
+                return
+            self.save[urlhash] = (url, True)
+            self.save.sync()
         pass
