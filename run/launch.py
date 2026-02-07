@@ -10,7 +10,9 @@ def main(config_file : str, restart : bool):
     config.cache_server = get_cache_server(config, restart)
     crawler = Crawler(config, restart)
     crawler.start()
-
+    crawler_stats = crawler.get_stats()
+    print("CRAWLER STATS:")
+    print(crawler_stats)
 
 if __name__ == "__main__":
     parser = ArgumentParser()

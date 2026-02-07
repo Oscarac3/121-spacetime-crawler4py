@@ -26,7 +26,7 @@ class ThreadedFrontier(object):
         self.cv = Condition(self.lock)
         
         # {domain : [(value, count, url), ...]} where value is the information value and count is like a timestamp to break ties
-        self.domain_queues : Dict[List[Tuple[int, int, str]]] = defaultdict(list)
+        self.domain_queues : Dict[str, List[Tuple[int, int, str]]] = defaultdict(list)
         # min-Heap of tuples: (next_available_timestamp, domain)
         self.domain_heap = []
         self.domains_in_heap = set()
@@ -35,6 +35,9 @@ class ThreadedFrontier(object):
         # For viewing
         self.total_count = 0
         self.completed_count = 0
+
+        # Termination tracking: how many workers currently have a URL checked out
+        self.active_workers = 0
 
         self._init_frontier(restart)
     
@@ -72,7 +75,7 @@ class ThreadedFrontier(object):
                     url, completed = data
                 else:
                     url, completed, score, count = data
-                    if Scraper.is_valid(url):
+                    if not completed and Scraper.is_valid(url):
                         self._add_to_memory(url, count, score)
                         tbd_count += 1
                         max_entry_count = max(max_entry_count, count)
@@ -96,30 +99,36 @@ class ThreadedFrontier(object):
         # Get one url that has to be downloaded.
         # Can return None to signify the end of crawling.
         with self.lock:
-
             while True:
-                if not self.domain_heap:
-                    return None
-                next_time, domain = self.domain_heap[0]
-                now = time.time()                
-                if now >= next_time:
-                    heapq.heappop(self.domain_heap)
-                    if domain in self.domain_queues and self.domain_queues[domain]:
-                        _, _, url = heapq.heappop(self.domain_queues[domain])
-                        new_next_time = time.time() + 0.5
-                        if self.domain_queues[domain]:
-                            heapq.heappush(self.domain_heap, (new_next_time, domain))
+                if self.domain_heap:
+                    next_time, domain = self.domain_heap[0]
+                    now = time.time()                
+                    if now >= next_time:
+                        heapq.heappop(self.domain_heap)
+                        if domain in self.domain_queues and self.domain_queues[domain]:
+                            _, _, url = heapq.heappop(self.domain_queues[domain])
+                            new_next_time = time.time() + self.config.time_delay
+                            if self.domain_queues[domain]:
+                                heapq.heappush(self.domain_heap, (new_next_time, domain))
+                            else:
+                                self.domains_in_heap.remove(domain)
+                                del self.domain_queues[domain]
+                            self.active_workers += 1
+                            return url
                         else:
-                            self.domains_in_heap.remove(domain)
-                            del self.domain_queues[domain]
-                        return url
+                            if domain in self.domains_in_heap:
+                                self.domains_in_heap.remove(domain)
+                            continue
                     else:
-                        if domain in self.domains_in_heap:
-                            self.domains_in_heap.remove(domain)
-                        continue
+                        wait_time = next_time - now
+                        self.cv.wait(timeout=wait_time)
                 else:
-                    wait_time = next_time - now
-                    self.cv.wait(timeout=wait_time)
+                    # Heap is empty: if no workers are active, crawl is truly done
+                    if self.active_workers == 0:
+                        self.cv.notify_all()
+                        return None
+                    # Otherwise, a worker may still produce new URLs — wait
+                    self.cv.wait(timeout=1.0)
 
     def add_url(self, url, score : int = 0, entry_count : int | None = None) -> None:
         # Adds one url to the frontier to be downloaded later.
@@ -134,9 +143,9 @@ class ThreadedFrontier(object):
                 self.total_count += 1
                 self.save[urlhash] = (url, False, score, entry_count)
                 self.save.sync()
-                self._add_to_memory(url, score, entry_count)
+                self._add_to_memory(url, entry_count, score)
                 # notify workers
-                self.cv.notify()
+                self.cv.notify_all()
     
     def mark_url_complete(self, url : str) -> None:
         # mark a url as completed so that on restart, this url is not
@@ -144,12 +153,14 @@ class ThreadedFrontier(object):
         urlhash = get_urlhash(url)
         with self.lock:
             self.completed_count += 1
+            self.active_workers -= 1
             if urlhash not in self.save:
-                self.logger.error(f"Completed url {url}, but have not seen it before. wtf")
+                self.logger.error(f"Completed url {url}, but have not seen it before.")
                 return
             self.save[urlhash] = (url, True)
             self.save.sync()
-        pass
+            # Notify in case workers are waiting for termination check
+            self.cv.notify_all()
 
 # class Frontier(object):
 #     def __init__(self, config : Config, restart : bool):

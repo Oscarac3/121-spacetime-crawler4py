@@ -48,3 +48,16 @@ class Crawler(object):
     def join(self):
         for worker in self.workers:
             worker.join()
+
+    def get_stats(self):
+        longest_url, longest_count = self.scraper.get_longest_page()
+        unique_pages = self.scraper.get_uniquePages_num()
+        subdomain_freq = self.scraper.get_subdomain_freq()
+        fifty_most_freq_words = self.scraper.get_fifty_most_freq_words()
+        return {
+            "longest_url": longest_url,
+            "longest_count": longest_count,
+            "unique_pages": unique_pages,
+            "subdomain_freq": subdomain_freq,
+            "fifty_most_freq_words": fifty_most_freq_words
+        }

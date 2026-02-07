@@ -33,6 +33,11 @@ class URL:
     def __hash__(self):
         return hash(self.page)
     
+    def __eq__(self, other):
+        if not isinstance(other, URL):
+            return NotImplemented
+        return self.page == other.page
+
     def __str__(self):
         return self.url
     
@@ -41,12 +46,15 @@ class URL:
 
     def __get_page(self) -> str:
         '''
-        Returns full URL discarding everything after the page
+        Returns full URL discarding fragment only
         '''
         path = self._parsed.path
         if path.endswith("/"):
             path = path[:-1]
-        return self._parsed.scheme + "://" + self._parsed.netloc + path
+        base = self._parsed.scheme + "://" + self._parsed.netloc + path
+        if self._parsed.query:
+            base += "?" + self._parsed.query
+        return base
     
     def __get_subdomain(self) -> str:
         '''
@@ -61,6 +69,11 @@ class Link:
 
     def __hash__(self):
         return self.url.__hash__()
+
+    def __eq__(self, other):
+        if not isinstance(other, Link):
+            return NotImplemented
+        return self.url == other.url
 class Scraper:
 
     def __init__(self):
@@ -150,16 +163,11 @@ class Scraper:
         return False
 
     def update_word_freq(self, words: list):
-        for token in words:
-            if token in STOPWORDS:
-                continue
-            with self.lock:
-                self.word_freq[token] = self.word_freq.get(token, 0) + 1
-            
-    def fifty_most_freq_words(self):
         with self.lock:
-            sorted_words = sorted(self.word_freq.items(), key=lambda x: x[1], reverse=True)
-        return sorted_words[:50]
+            for token in words:
+                if token in STOPWORDS:
+                    continue
+                self.word_freq[token] = self.word_freq.get(token, 0) + 1
 
     def update_longest_page(self, url : URL, word_count : int):
         """
@@ -175,13 +183,26 @@ class Scraper:
             if url.in_domain("uci.edu"):
                 self.subdomain_freq[url.subdomain] = self.subdomain_freq.get(url.subdomain, 0) + 1 
             
-    def get_longest_page(self):
-        return self.longest_url, self.highest_word_count
-    
     def get_uniquePages_num(self):
+        '''Returns the number of unique pages we have seen so far'''
         return len(self.seen_urls)
     
+    def get_longest_page(self):
+        '''Returns the longest page URL and its word count'''
+        return self.longest_url, self.highest_word_count
+    
+    def get_fifty_most_freq_words(self):
+        '''
+        Returns a list of tuples (word, frequency) sorted in decreasing order of frequency (top 50)
+        '''
+        with self.lock:
+            sorted_words = sorted(self.word_freq.items(), key=lambda x: x[1], reverse=True)
+        return sorted_words[:50]
+    
     def get_subdomain_freq(self):
+        '''
+        Returns a list of tuples (subdomain, frequency) sorted alphabetically by subdomain.
+        '''
         with self.lock:
             sorted_freq = sorted(self.subdomain_freq.items())
         return sorted_freq
