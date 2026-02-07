@@ -1,3 +1,4 @@
+import re
 STOPWORDS = {
                         "a", "about", "above", "after", "again", "against", "all", "am", "an", "and", 
                         "any", "are", "aren't", "as", "at", "be", "because", "been", "before", 
@@ -20,3 +21,13 @@ STOPWORDS = {
                         "why", "why's", "with", "won't", "would", "wouldn't", "you", "you'd", 
                         "you'll", "you're", "you've", "your", "yours", "yourself", "yourselves"
                 }
+
+BAD_EXT_REGEX = re.compile(
+    r"\.(css|js|bmp|gif|jpe?g|ico|png|tiff?|mid|mp2|mp3|mp4|"
+    r"wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf|ps|eps|tex|"
+    r"ppt|pptx|doc|docx|xls|xlsx|names|data|dat|exe|bz2|tar|"
+    r"msi|bin|7z|psd|dmg|iso|epub|dll|cnf|tgz|sha1|thmx|mso|"
+    r"arff|rtf|jar|csv|rm|smil|wmv|swf|wma|zip|rar|gz)"
+    r"(?:\?|&|$|[^\w])", 
+    re.IGNORECASE
+)

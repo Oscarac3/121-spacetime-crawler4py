@@ -89,7 +89,7 @@ class Crawler(object):
         }
         if save:
             current_time = time.strftime("%Y%m%d-%H%M%S")
-            path = f"{current_time}.pkl"
+            path = f"Logs/{current_time}.pkl"
             with open(path, "wb") as f:
                 pickle.dump(stats, f)
             self.logger.info(f"Stats saved to {path}")

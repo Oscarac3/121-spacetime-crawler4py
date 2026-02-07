@@ -39,10 +39,19 @@ class ThreadedFrontier(object):
         # Termination tracking: how many workers currently have a URL checked out
         self.active_workers = 0
 
+        self.polite = False
+
         self._init_frontier(restart)
     
     def _get_domain(self, url : str) -> str:
-        return urlparse(url).netloc
+        subdomain = urlparse(url).netloc
+        if self.polite:
+            valid_domains = [urlparse(d).netloc for d in self.config.seed_urls]
+            for valid_domain in valid_domains:
+                if subdomain == valid_domain or subdomain.endswith("." + valid_domain) or subdomain.endswith(valid_domain.removeprefix("www.")):
+                    return valid_domain
+            self.logger.warning(f"URL {url} has subdomain {subdomain} which does not match any valid domain {valid_domains}. Assigning to {subdomain} as its own domain.")
+        return subdomain
 
     def _init_frontier(self, restart : bool) -> None:
         if not os.path.exists(self.config.save_file) and not restart:

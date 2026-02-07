@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 from dataclasses import dataclass
 from urllib.parse import urlparse, urljoin, urldefrag
 
-from .misc import STOPWORDS
+from .misc import STOPWORDS, BAD_EXT_REGEX
 
 '''
 Server Cache status codes
@@ -145,9 +145,13 @@ class Scraper:
         query = url._parsed.query
         if any(trap in path for trap in ["calendar", 'events'] ):
             return True 
-        if any(trap in query for trap in ["day=", "month=", "year="]):
+        if any(trap in query for trap in ["day=", "month=", "year=", "rev=", "idx=", "rev="]):
+            return True
+        if "do=" in query and "do=show" not in query:
             return True
         if path.count("/") > 6: # arbitrary threshold 
+            return True
+        if len(url.url) > 100: # arbitrary threshold
             return True
         # experimental:
         path_components = path.strip('/').split('/')
@@ -328,21 +332,16 @@ class Scraper:
             if not any(l_domain.endswith("." + valid_domain) or l_domain == valid_domain for valid_domain in allowed_domains):
                 return False
             # Disallowed links
-            disallowed = ["https://wiki.ics.uci.edu/doku.php/start?do=diff"]
+            disallowed = []
             for dis in disallowed:
                 if url.url.startswith(dis):
                     return False
+            # special cases
+            gitlab = "https://gitlab.ics.uci.edu"
+            if url.url.startswith(gitlab) and any(tag in url.url for tag in ["commit", "tags", "forks", "tree", "branches", "merge_requests", "issues"]):
+                return False
             # ----------------- Our code ends here -----------------
-
-            return not re.match(
-                r".*\.(css|js|bmp|gif|jpe?g|ico"
-                + r"|png|tiff?|mid|mp2|mp3|mp4"
-                + r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf"
-                + r"|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names"
-                + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
-                + r"|epub|dll|cnf|tgz|sha1"
-                + r"|thmx|mso|arff|rtf|jar|csv"
-                + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", url._parsed.path.lower())
+            return not BAD_EXT_REGEX.search(url.url)
 
         except TypeError:
             print("TypeError for ", url._parsed)
