@@ -1,0 +1,4 @@
+2026-02-06 22:21:04,774 - Scraper - INFO - Loaded state from raw_stats.pkl: 171 seen URLs.
+2026-02-06 22:26:45,103 - Scraper - INFO - Error processing href http:// on page https://ngs.ics.uci.edu/user-video-on-microsoft: can only concatenate str (not "NoneType") to str
+2026-02-06 22:32:45,764 - Scraper - INFO - Error processing href http:https://archive-www.ics.uci.edu/bin/archive/informatics/uploads/GlobalGameJam2018-20180128_144639.jpg on page https://www.ics.uci.edu/community/news/view_news?id=1286: can only concatenate str (not "NoneType") to str
+2026-02-06 22:32:45,765 - Scraper - INFO - Error processing href http:https://archive-www.ics.uci.edu/bin/archive/informatics/uploads/GlobalGameJam2018-20180128_143914.jpg on page https://www.ics.uci.edu/community/news/view_news?id=1286: can only concatenate str (not "NoneType") to str
