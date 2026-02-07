@@ -203,12 +203,37 @@ class Scraper:
         tokenized = self.tokenize(text)
         freqs = {}
         for token in tokenized:
-            freqs.get(token, 0) + 1
+            freqs[token] = freqs.get(token, 0) + 1
         
-        #TODO
+        # 64 lenght vector/ using 64 bits
+        # part 2 and 3 from slides
+        v = [0] * 64
+        for token, weight in freqs.items():
+            # base 16 int from hash 
+            hash_u = int(hashlib.sha1(token.encode("utf-8")).hexdigest(), 16)
 
+            for i in range(64):
+                #least significant bit from i num
+                if(hash_u >> i) & 1:
+                    v[i] += weight
+                else:
+                    v[i] -= weight
 
-
+        simhash = 0
+        for i, sum_ in enumerate(v):
+            if sum_ > 0:
+                #bit wise or it at index i 
+                simhash |= (1 << i )
+        
+        for seen_hash in self.seen_near_content_hashes:
+            # XOR if both same 0, diff 1 
+            similarity = bin(simhash ^ seen_hash).count("1")
+            #counting diff so 1 - to get same ratio
+            S_a_b = 1 - similarity/64
+            if S_a_b >= 0.9:
+                return True
+        self.seen_near_content_hashes.add(simhash)
+        return False
 
 
 
@@ -319,9 +344,13 @@ class Scraper:
             words = self.tokenize(clean_text)
             word_count = len(words)
             
-            # check similarity with other pages (experimental, not implemented)
-            # if self.detect_similar(url, resp):
-            #   return []     
+            # check exact similarity with other pages (experimental)
+            if self.detect_exact_similar(url, resp):
+              return []    
+            # check near similarity with other pages (experimental)
+            if self.detect_near_similar(url, resp):
+              return []     
+            
             #Check for low info, like if page is > 1MB but has less than 200 words.
             if self.detect_low_info(url, resp, word_count):
                 return []
