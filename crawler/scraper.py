@@ -2,7 +2,7 @@ import re
 import pickle
 import threading
 from typing import Set
-from utils import Response
+from utils import Response, get_logger
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
 from urllib.parse import urlparse, urljoin, urldefrag
@@ -86,6 +86,7 @@ class Link:
 class Scraper:
 
     def __init__(self, restart : bool = False):
+        self.logger = get_logger("Scraper")
         # includes all the urls we have seen so far (no fragments), to avoid crawling the same url twice.
         self.seen_urls : Set[URL] = set()
         # stores the raw content hash (lecture 11) of the pages we have seen, to detect exact duplicates with different urls.
@@ -120,7 +121,7 @@ class Scraper:
                 self.subdomain_freq = raw_stats.get("subdomain_freq", {})
                 self.longest_url = raw_stats.get("longest_url", None)
                 self.highest_word_count = raw_stats.get("highest_word_count", 0)
-            print(f"Loaded state from raw_stats.pkl: {len(self.seen_urls)} seen URLs.")
+            self.logger.info(f"Loaded state from raw_stats.pkl: {len(self.seen_urls)} seen URLs.")
         except FileNotFoundError:
             pass
 
@@ -284,7 +285,7 @@ class Scraper:
             self.update_analytics(url, words, word_count)
 
         except Exception as e:
-            print(f"Error processing {url}: {e}")
+            self.logger.info(f"Error processing {url}: {e}")
             return []
         
         total_links : Set[Link] = set()
@@ -292,7 +293,11 @@ class Scraper:
             hlink =  a["href"]    
             total_href = urljoin(url.url, hlink)
             total_href, frag = urldefrag(total_href)
-            total_links.add(Link(URL(total_href)))
+            try:
+                total_links.add(Link(URL(total_href)))
+            except Exception as e:
+                self.logger.info(f"Error processing href {total_href} on page {url}: {e}")
+                continue
 
         # ----------------- Our code ends here -----------------
 
@@ -340,6 +345,6 @@ class Scraper:
                 + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", url._parsed.path.lower())
 
         except TypeError:
-            print ("TypeError for ", url._parsed)
+            print("TypeError for ", url._parsed)
             raise
         

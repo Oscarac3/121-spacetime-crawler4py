@@ -10,7 +10,7 @@ from utils import get_logger, Config
 class Crawler(object):
     def __init__(self, config : Config, restart : bool, frontier_factory=ThreadedFrontier, worker_factory=ThreadedWorker, scraper_factory=Scraper):
         self.config = config
-        self.logger = get_logger("CRAWLER")
+        self.logger = get_logger("Crawler")
         self.frontier = frontier_factory(config, restart)
         self.scraper = scraper_factory()
         self.workers : List[ThreadedWorker] = []
