@@ -1,5 +1,6 @@
 import re
 import pickle
+import hashlib
 import threading
 from typing import Set
 from utils import Response, get_logger
@@ -161,15 +162,55 @@ class Scraper:
         return False 
 
     #TODO
-    def detect_similar(self, url : URL, resp : Response) -> bool:
+    def detect_exact_similar(self, url : URL, resp : Response) -> bool:
         '''
-        Detect and avoid sets of similar pages. 
+        Detect and avoid sets of exact pages. 
         For example, a page that has links to the same page with different parameters, but the content is the same.
         We can keep an internal hashset of the content of the pages we have seen and compare.
 
         Return True if you think this is a similar page, False otherwise.
         '''
-        pass
+        # only using built in libraries like hashlib and re 
+        raw_bytes = resp.raw_response.content
+        text = raw_bytes.decode("utf-8", errors = "ignore")
+        
+        # remove html
+        text = re.sub(r'<[^>]+>', '', text)
+        # white space and lower it for exact words match
+        text = re.sub(r"\s+", " ", text).strip().lower()
+
+        hash = hashlib.sha1(text.encode("utf-8")).hexdigest()
+
+        if hash in self.seen_exact_content_hashes:
+            return True
+        # add to set if not elsewhere
+        self.seen_exact_content_hashes.add(hash)
+        return False
+    
+    def detect_near_similar(self, url: URL, resp : Response)-> bool:
+        '''
+        Detect and avoid sets of near similar pages. 
+        For example, a page that has links to the same page with different parameters, but the content is the same.
+        We can keep an internal hashset of the content of the pages we have seen and compare.
+
+        Return True if you think this is a similar page, False otherwise.
+        Using Simhash from lecture 
+        '''
+
+        raw_bytes = resp.raw_response.content
+        text = raw_bytes.decode("utf-8", errors = "ignore")
+        # tokenize from slide and frequency
+        tokenized = self.tokenize(text)
+        freqs = {}
+        for token in tokenized:
+            freqs.get(token, 0) + 1
+        
+        #TODO
+
+
+
+
+
 
     def detect_large(self, url : URL, resp : Response) -> bool:
         '''
