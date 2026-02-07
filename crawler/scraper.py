@@ -41,13 +41,20 @@ class URL:
     def __str__(self):
         return self.url
     
+    def __repr__(self):
+        return self.url
+    
     def in_domain(self, domain : str) -> bool:
         return self.subdomain and self.subdomain.endswith(domain)
+    
+    def valid_scheme(self) -> bool:
+        return self._parsed.scheme in set(["http", "https"])
 
     def __get_page(self) -> str:
         '''
         Returns full URL discarding fragment only
         '''
+        if not self.valid_scheme(): return ""
         path = self._parsed.path
         if path.endswith("/"):
             path = path[:-1]
@@ -60,6 +67,7 @@ class URL:
         '''
         Returns the full subdomain of the URL, including the domain.
         '''
+        if not self.valid_scheme(): return ""
         return self._parsed.scheme + "://" + self._parsed.hostname
     
 @dataclass
@@ -276,18 +284,16 @@ class Scraper:
         # If you decide to crawl it, return True; otherwise return False.
         # There are already some conditions that return False.
         try:
+            # ----------------- Our code starts here -----------------
             if isinstance(url, str):
                 url = Link(URL(url))
             url : URL = url.url
+            # Check if the url has a valid scheme
+            if url._parsed.scheme not in set(["http", "https"]):
+                return False
             #We check to see if the url structure is a trap or not
             if Scraper.detect_trap(url):
                 return False
-
-            if url._parsed.scheme not in set(["http", "https"]):
-                return False
-
-            # ----------------- Our code starts here -----------------
-
             # Only allowed domains
             allowed_domains = ["ics.uci.edu",
                             "cs.uci.edu",

@@ -50,11 +50,15 @@ class Crawler(object):
 
     def start(self):
         self.start_async()
-        self.view_progress()
+        try:
+            self.view_progress()
+        except KeyboardInterrupt:
+            self.logger.info("KeyboardInterrupt received, stopping crawler.")
         self.join()
 
     def join(self):
         for worker in self.workers:
+            worker.stop()
             worker.join()
 
     def get_stats(self):

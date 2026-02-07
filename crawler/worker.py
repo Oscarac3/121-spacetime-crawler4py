@@ -21,7 +21,11 @@ class ThreadedWorker(Thread): # Worker must inherit from Thread or Process.
         self.frontier = frontier
         self.scraper = scraper
         self.logger = get_logger(f"Worker-{worker_id}", "Worker")
+        self.active = True
         super().__init__(daemon=True)
+
+    def stop(self):
+        self.active = False
 
     def run(self):
         '''
@@ -32,14 +36,14 @@ class ThreadedWorker(Thread): # Worker must inherit from Thread or Process.
             > add next_links to frontier
             > sleep for self.config.time_delay
         '''
-        while True:
+        while self.active:
             # blocks until a URL is ready (politeness handled by Frontier)
             tbd_url = self.frontier.get_tbd_url()
             if not tbd_url:
                 self.logger.info("Frontier is empty. Stopping Worker.")
                 break
             resp = download(tbd_url, self.config, self.logger)
-            self.logger.info(
+            self.logger.debug(
                 f"Downloaded {tbd_url}, status <{resp.status}>, "
                 f"using cache {self.config.cache_server}.")
             scraped = self.scraper.scrape(tbd_url, resp)
