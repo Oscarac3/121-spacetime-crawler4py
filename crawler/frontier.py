@@ -114,6 +114,8 @@ class ThreadedFrontier(object):
                                 self.domains_in_heap.remove(domain)
                                 del self.domain_queues[domain]
                             self.active_workers += 1
+                            time_since_last = int((now - (next_time - self.config.time_delay)) * 1000)
+                            self.logger.debug(f"Dispatching URL {url} from domain {domain} | {time_since_last} ms since last dispatch.")
                             return url
                         else:
                             if domain in self.domains_in_heap:

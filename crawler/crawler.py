@@ -1,4 +1,5 @@
 import time
+import pickle
 from tqdm import tqdm
 from typing import List
 from .worker import ThreadedWorker
@@ -61,15 +62,22 @@ class Crawler(object):
             worker.stop()
             worker.join()
 
-    def get_stats(self):
+    def get_stats(self, save = True):
         longest_url, longest_count = self.scraper.get_longest_page()
         unique_pages = self.scraper.get_uniquePages_num()
         subdomain_freq = self.scraper.get_subdomain_freq()
         fifty_most_freq_words = self.scraper.get_fifty_most_freq_words()
-        return {
+        stats = {
             "longest_url": longest_url,
             "longest_count": longest_count,
             "unique_pages": unique_pages,
             "subdomain_freq": subdomain_freq,
             "fifty_most_freq_words": fifty_most_freq_words
         }
+        if save:
+            current_time = time.strftime("%Y%m%d-%H%M%S")
+            path = f"{current_time}.pkl"
+            with open(path, "wb") as f:
+                pickle.dump(stats, f)
+            self.logger.info(f"Stats saved to {path}")
+        return stats
