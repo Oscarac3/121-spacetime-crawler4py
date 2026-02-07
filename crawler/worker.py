@@ -1,4 +1,3 @@
-import time
 from threading import Thread
 
 from .scraper import Scraper
@@ -42,10 +41,10 @@ class ThreadedWorker(Thread): # Worker must inherit from Thread or Process.
             if not tbd_url:
                 self.logger.info("Frontier is empty. Stopping Worker.")
                 break
-            resp = download(tbd_url, self.config, self.logger)
+            resp, time = download(tbd_url, self.config, self.logger)
             self.logger.debug(
                 f"Downloaded {tbd_url}, status <{resp.status}>, "
-                f"using cache {self.config.cache_server}.")
+                f"using cache {self.config.cache_server}. {time:.2f} seconds.")
             scraped = self.scraper.scrape(tbd_url, resp)
             for link in scraped:
                 self.frontier.add_url(link.url.url, link.score)

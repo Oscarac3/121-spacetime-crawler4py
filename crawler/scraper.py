@@ -1,4 +1,5 @@
 import re
+import pickle
 import threading
 from typing import Set
 from utils import Response
@@ -84,7 +85,7 @@ class Link:
         return self.url == other.url
 class Scraper:
 
-    def __init__(self):
+    def __init__(self, restart : bool = False):
         # includes all the urls we have seen so far (no fragments), to avoid crawling the same url twice.
         self.seen_urls : Set[URL] = set()
         # stores the raw content hash (lecture 11) of the pages we have seen, to detect exact duplicates with different urls.
@@ -103,6 +104,25 @@ class Scraper:
         #Longest page variables
         self.longest_url = None
         self.highest_word_count = 0
+
+        if not restart:
+            self.load_state()
+
+    def load_state(self):
+        '''Loads the state from a pkl file'''
+        try:
+            with open("raw_stats.pkl", "rb") as f:
+                raw_stats : dict = pickle.load(f)
+                self.seen_urls = raw_stats.get("seen_urls", set())
+                self.seen_exact_content_hashes = raw_stats.get("seen_exact_content_hashes", set())
+                self.seen_near_content_hashes = raw_stats.get("seen_near_content_hashes", set())
+                self.word_freq = raw_stats.get("word_freq", {})
+                self.subdomain_freq = raw_stats.get("subdomain_freq", {})
+                self.longest_url = raw_stats.get("longest_url", None)
+                self.highest_word_count = raw_stats.get("highest_word_count", 0)
+            print(f"Loaded state from raw_stats.pkl: {len(self.seen_urls)} seen URLs.")
+        except FileNotFoundError:
+            pass
 
     def scrape(self, url : str, resp : Response) -> list[Link]:
         links = self.extract_next_links(url, resp)
@@ -302,7 +322,11 @@ class Scraper:
             l_domain = url._parsed.netloc.lower()
             if not any(l_domain.endswith("." + valid_domain) or l_domain == valid_domain for valid_domain in allowed_domains):
                 return False
-
+            # Disallowed links
+            disallowed = ["https://wiki.ics.uci.edu/doku.php/start?do=diff"]
+            for dis in disallowed:
+                if url.url.startswith(dis):
+                    return False
             # ----------------- Our code ends here -----------------
 
             return not re.match(

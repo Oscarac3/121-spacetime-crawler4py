@@ -115,6 +115,8 @@ class ThreadedFrontier(object):
                                 del self.domain_queues[domain]
                             self.active_workers += 1
                             time_since_last = int((now - (next_time - self.config.time_delay)) * 1000)
+                            if time_since_last < self.config.time_delay * 1000:
+                                raise ValueError(f"Dispatched URL {url} from domain {domain} after only {time_since_last} ms since last dispatch, which is less than the configured time delay of {self.config.time_delay * 1000} ms.")
                             self.logger.debug(f"Dispatching URL {url} from domain {domain} | {time_since_last} ms since last dispatch.")
                             return url
                         else:

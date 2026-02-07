@@ -67,6 +67,19 @@ class Crawler(object):
         unique_pages = self.scraper.get_uniquePages_num()
         subdomain_freq = self.scraper.get_subdomain_freq()
         fifty_most_freq_words = self.scraper.get_fifty_most_freq_words()
+        # save raw stats
+        raw_stats = {
+            "seen_urls": self.scraper.seen_urls,
+            "seen_exact_content_hashes": self.scraper.seen_exact_content_hashes,
+            "seen_near_content_hashes": self.scraper.seen_near_content_hashes,
+            "word_freq": self.scraper.word_freq,
+            "subdomain_freq": self.scraper.subdomain_freq,
+            "longest_url": longest_url,
+            "highest_word_count" : longest_count
+        }
+        with open("raw_stats.pkl", "wb") as f:
+                pickle.dump(raw_stats, f)
+        # save processed stats
         stats = {
             "longest_url": longest_url,
             "longest_count": longest_count,
