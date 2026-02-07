@@ -26,19 +26,27 @@ class Crawler(object):
         frontier = self.frontier
         with tqdm(total=frontier.total_count, unit="it") as pbar:
             last_val = 0
-            while frontier.completed_count < frontier.total_count:
+            while True:
+                with frontier.lock:
+                    completed = frontier.completed_count
+                    total = frontier.total_count
+                    active = frontier.active_workers
+                if completed >= total and active == 0:
+                    break
                 # update the goal if it changed externally
-                if pbar.total != frontier.total_count:
-                    pbar.total = frontier.total_count
+                if pbar.total != total:
+                    pbar.total = total
                     pbar.refresh()
                 # update the bar based on the delta
-                current_val = frontier.completed_count
-                delta = current_val - last_val
+                delta = completed - last_val
                 if delta > 0:
                     pbar.update(delta)
-                    last_val = current_val                   
+                    last_val = completed
+                # also break if all worker threads have died
+                if not any(w.is_alive() for w in self.workers):
+                    break
                 time.sleep(0.1)
-            pbar.update(frontier.total_count - last_val)
+            pbar.update(total - last_val)
 
     def start(self):
         self.start_async()

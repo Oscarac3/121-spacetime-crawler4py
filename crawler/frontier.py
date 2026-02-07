@@ -130,7 +130,7 @@ class ThreadedFrontier(object):
                     # Otherwise, a worker may still produce new URLs — wait
                     self.cv.wait(timeout=1.0)
 
-    def add_url(self, url, score : int = 0, entry_count : int | None = None) -> None:
+    def add_url(self, url : str, score : int = 0, entry_count : int | None = None) -> None:
         # Adds one url to the frontier to be downloaded later.
         # Checks can be made to prevent downloading duplicates.
         url = normalize(url)

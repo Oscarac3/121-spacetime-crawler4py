@@ -44,7 +44,7 @@ class ThreadedWorker(Thread): # Worker must inherit from Thread or Process.
                 f"using cache {self.config.cache_server}.")
             scraped = self.scraper.scrape(tbd_url, resp)
             for link in scraped:
-                self.frontier.add_url(link.url, link.score)
+                self.frontier.add_url(link.url.url, link.score)
             self.frontier.mark_url_complete(tbd_url)
 
 # class Worker(Thread):

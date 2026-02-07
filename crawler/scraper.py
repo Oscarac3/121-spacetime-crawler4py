@@ -162,26 +162,23 @@ class Scraper:
 
         return False
 
-    def update_word_freq(self, words: list):
+    def update_analytics(self, url : URL, words : list, word_count : int):
+        """
+        Atomically updates all analytics: word frequency, longest page, and subdomain counts.
+        Single lock acquisition to avoid unnecessary churn.
+        """
         with self.lock:
+            # Word frequency
             for token in words:
-                if token in STOPWORDS:
-                    continue
-                self.word_freq[token] = self.word_freq.get(token, 0) + 1
-
-    def update_longest_page(self, url : URL, word_count : int):
-        """
-        Counts words in text & updates the longest page record if needed
-        """
-        with self.lock:
+                if token not in STOPWORDS:
+                    self.word_freq[token] = self.word_freq.get(token, 0) + 1
+            # Longest page
             if word_count > self.highest_word_count:
                 self.highest_word_count = word_count
                 self.longest_url = url
-    
-    def subdomain_checker(self, url: URL):
-        with self.lock:
+            # Subdomain counting
             if url.in_domain("uci.edu"):
-                self.subdomain_freq[url.subdomain] = self.subdomain_freq.get(url.subdomain, 0) + 1 
+                self.subdomain_freq[url.subdomain] = self.subdomain_freq.get(url.subdomain, 0) + 1
             
     def get_uniquePages_num(self):
         '''Returns the number of unique pages we have seen so far'''
@@ -255,12 +252,8 @@ class Scraper:
             if self.detect_low_info(url, resp, word_count):
                 return []
 
-            # Analytics            
-            self.update_word_freq(words)
-            #Update for longest Page
-            self.update_longest_page(url, len(words))
-            #Checks and counts how many subdomains are in uci.domain
-            self.subdomain_checker(url)
+            # Analytics (single lock acquisition for all updates)
+            self.update_analytics(url, words, word_count)
 
         except Exception as e:
             print(f"Error processing {url}: {e}")
