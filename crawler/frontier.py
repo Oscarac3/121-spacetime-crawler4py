@@ -19,7 +19,7 @@ class ThreadedFrontier(object):
         restart -> A bool that is True if the crawler has to restart
                   from the seed url and delete any current progress.
         '''
-        self.logger = get_logger("ThreadedFrontier")
+        self.logger = get_logger("Frontier")
         self.config = config
         
         self.lock = RLock()
