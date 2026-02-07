@@ -345,11 +345,11 @@ class Scraper:
             word_count = len(words)
             
             # check exact similarity with other pages (experimental)
-            if self.detect_exact_similar(url, resp):
-              return []    
+            #if self.detect_exact_similar(url, resp):
+              #return []    
             # check near similarity with other pages (experimental)
-            if self.detect_near_similar(url, resp):
-              return []     
+            #if self.detect_near_similar(url, resp):
+              #return []     
             
             #Check for low info, like if page is > 1MB but has less than 200 words.
             if self.detect_low_info(url, resp, word_count):
