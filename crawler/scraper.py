@@ -244,7 +244,7 @@ class Scraper:
         with self.lock:
             # Word frequency
             for token in words:
-                if token not in STOPWORDS:
+                if token not in STOPWORDS and len(token) > 1 and token.isdigit() == False:
                     self.word_freq[token] = self.word_freq.get(token, 0) + 1
             # Longest page
             if word_count > self.highest_word_count:
