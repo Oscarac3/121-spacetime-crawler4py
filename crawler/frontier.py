@@ -6,89 +6,10 @@ import time
 import heapq
 from urllib.parse import urlparse
 from collections import defaultdict
-from queue import Queue, Empty
-from threading import Thread, RLock, Condition
+from threading import RLock, Condition
 
-
+from .scraper import Scraper
 from utils import get_logger, get_urlhash, normalize, Config
-from scraper import is_valid #TODO: Fix
-
-class Frontier(object):
-    def __init__(self, config : Config, restart : bool):
-        self.logger = get_logger("FRONTIER")
-        self.config = config
-        self.to_be_downloaded : List[str] = []
-        self._init_frontier(restart)
-
-    def _init_frontier(self, restart : bool):
-        if not os.path.exists(self.config.save_file) and not restart:
-            self.logger.info(
-                f"Did not find save file {self.config.save_file}, "
-                f"starting from seed.")
-        elif os.path.exists(self.config.save_file) and restart:
-            self.logger.info(
-                f"Found save file {self.config.save_file}, deleting it.")
-            os.remove(self.config.save_file)
-        self.save = shelve.open(self.config.save_file)
-        if restart:
-            for url in self.config.seed_urls:
-                self.add_url(url)
-        else:
-            if self.save:
-                self._parse_save_file()
-            else:
-                for url in self.config.seed_urls:
-                    self.add_url(url)
-
-    def _parse_save_file(self):
-        ''' This function can be overridden for alternate saving techniques. '''
-        total_count = len(self.save)
-        tbd_count = 0
-        for url, completed in self.save.values():
-            if not completed and is_valid(url):
-                self.to_be_downloaded.append(url)
-                tbd_count += 1
-        self.logger.info(
-            f"Found {tbd_count} urls to be downloaded from {total_count} "
-            f"total urls discovered.")
-
-    def get_tbd_url(self):
-        try:
-            return self.to_be_downloaded.pop()
-        except IndexError:
-            return None
-
-    def add_url(self, url : str):
-        url = normalize(url)
-        urlhash = get_urlhash(url)
-        if urlhash not in self.save:
-            self.save[urlhash] = (url, False)
-            self.save.sync()
-            self.to_be_downloaded.append(url)
-    
-    def mark_url_complete(self, url : str):
-        urlhash = get_urlhash(url)
-        if urlhash not in self.save:
-            # This should not happen.
-            self.logger.error(
-                f"Completed url {url}, but have not seen it before.")
-
-        self.save[urlhash] = (url, True)
-        self.save.sync()
-
-#TODO:
-'''
-Make the frontier thread safe (replace the frontier list with a priority queue (threadsafe builtin) and use some locks).
-Most of it can be copy paste of above.
-Notes:
- - Frontier is singular and shared between workers
- - We can use a PQ for the frontier
-    - what is priority?
-    - each worker must be on a different domain at a time, how to skip higher priority urls that are on the same domain as the current url?
- - locks for the save file
- 
-'''
-
 class ThreadedFrontier(object):
     def __init__(self, config : Config, restart : bool):
         '''
@@ -151,7 +72,7 @@ class ThreadedFrontier(object):
                     url, completed = data
                 else:
                     url, completed, score, count = data
-                    if is_valid(url): #TODO: Fix
+                    if Scraper.is_valid(url):
                         self._add_to_memory(url, count, score)
                         tbd_count += 1
                         max_entry_count = max(max_entry_count, count)
@@ -229,3 +150,66 @@ class ThreadedFrontier(object):
             self.save[urlhash] = (url, True)
             self.save.sync()
         pass
+
+# class Frontier(object):
+#     def __init__(self, config : Config, restart : bool):
+#         self.logger = get_logger("FRONTIER")
+#         self.config = config
+#         self.to_be_downloaded : List[str] = []
+#         self._init_frontier(restart)
+
+#     def _init_frontier(self, restart : bool):
+#         if not os.path.exists(self.config.save_file) and not restart:
+#             self.logger.info(
+#                 f"Did not find save file {self.config.save_file}, "
+#                 f"starting from seed.")
+#         elif os.path.exists(self.config.save_file) and restart:
+#             self.logger.info(
+#                 f"Found save file {self.config.save_file}, deleting it.")
+#             os.remove(self.config.save_file)
+#         self.save = shelve.open(self.config.save_file)
+#         if restart:
+#             for url in self.config.seed_urls:
+#                 self.add_url(url)
+#         else:
+#             if self.save:
+#                 self._parse_save_file()
+#             else:
+#                 for url in self.config.seed_urls:
+#                     self.add_url(url)
+
+#     def _parse_save_file(self):
+#         ''' This function can be overridden for alternate saving techniques. '''
+#         total_count = len(self.save)
+#         tbd_count = 0
+#         for url, completed in self.save.values():
+#             if not completed and is_valid(url):
+#                 self.to_be_downloaded.append(url)
+#                 tbd_count += 1
+#         self.logger.info(
+#             f"Found {tbd_count} urls to be downloaded from {total_count} "
+#             f"total urls discovered.")
+
+#     def get_tbd_url(self):
+#         try:
+#             return self.to_be_downloaded.pop()
+#         except IndexError:
+#             return None
+
+#     def add_url(self, url : str):
+#         url = normalize(url)
+#         urlhash = get_urlhash(url)
+#         if urlhash not in self.save:
+#             self.save[urlhash] = (url, False)
+#             self.save.sync()
+#             self.to_be_downloaded.append(url)
+    
+#     def mark_url_complete(self, url : str):
+#         urlhash = get_urlhash(url)
+#         if urlhash not in self.save:
+#             # This should not happen.
+#             self.logger.error(
+#                 f"Completed url {url}, but have not seen it before.")
+
+#         self.save[urlhash] = (url, True)
+#         self.save.sync()

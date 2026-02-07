@@ -1,42 +1,27 @@
 import re
+import threading
+from typing import Set
 from utils import Response
 from bs4 import BeautifulSoup
-from urllib.parse import urlparse, urljoin, urldefrag
-import threading
-
-from typing import Set, Dict, Tuple
 from dataclasses import dataclass
+from urllib.parse import urlparse, urljoin, urldefrag
+
+from .misc import STOPWORDS
 
 '''
-#TODO: Handle these
 Server Cache status codes
 These are all the cache server error codes:
-
 600: Request Malformed
-
 601: Download Exception {error}
-
 602: Spacetime Server Failure
-
 603: Scheme has to be either http or https
-
 604: Domain must be within spec
-
 605: Not an appropriate file extension
-
 606: Exception in parsing url
-
 607: Content too big. {resp.headers['content-length']}
-
 608: Denied by domain robot rules
-
 You may ignore some of them, but not all.
-
 '''
-@dataclass
-class Link:
-    url: str
-    score: float = 0
 
 class URL:
     def __init__(self, url : str):
@@ -68,8 +53,14 @@ class URL:
         Returns the full subdomain of the URL, including the domain.
         '''
         return self._parsed.scheme + "://" + self._parsed.hostname
-        
+    
+@dataclass
+class Link:
+    url: URL
+    score: float = 0
 
+    def __hash__(self):
+        return self.url.__hash__()
 class Scraper:
 
     def __init__(self):
@@ -81,85 +72,47 @@ class Scraper:
         self.seen_near_content_hashes = set()
         
         # Thread safety lock
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
 
         # Stats for report
-
         # Top 50 most common words across all pages (after removing stop words: https://www.ranks.nl/stopwords)
         self.word_freq = {}
-        self.stop_words = {
-                        "a", "about", "above", "after", "again", "against", "all", "am", "an", "and", 
-                        "any", "are", "aren't", "as", "at", "be", "because", "been", "before", 
-                        "being", "below", "between", "both", "but", "by", "can't", "cannot", "could", 
-                        "couldn't", "did", "didn't", "do", "does", "doesn't", "doing", "don't", 
-                        "down", "during", "each", "few", "for", "from", "further", "had", "hadn't", 
-                        "has", "hasn't", "have", "haven't", "having", "he", "he'd", "he'll", "he's", 
-                        "her", "here", "here's", "hers", "herself", "him", "himself", "his", "how", 
-                        "how's", "i", "i'd", "i'll", "i'm", "i've", "if", "in", "into", "is", 
-                        "isn't", "it", "it's", "its", "itself", "let's", "me", "more", "most", 
-                        "mustn't", "my", "myself", "no", "nor", "not", "of", "off", "on", "once", 
-                        "only", "or", "other", "ought", "our", "ourselves", "out", "over", 
-                        "own", "same", "shan't", "she", "she'd", "she'll", "she's", "should", 
-                        "shouldn't", "so", "some", "such", "than", "that", "that's", "the", "their", 
-                        "theirs", "them", "themselves", "then", "there", "there's", "these", "they", 
-                        "they'd", "they'll", "they're", "they've", "this", "those", "through", "to", 
-                        "too", "under", "until", "up", "very", "was", "wasn't", "we", "we'd", 
-                        "we'll", "we're", "we've", "were", "weren't", "what", "what's", "when", 
-                        "when's", "where", "where's", "which", "while", "who", "who's", "whom", 
-                        "why", "why's", "with", "won't", "would", "wouldn't", "you", "you'd", 
-                        "you'll", "you're", "you've", "your", "yours", "yourself", "yourselves"
-                }
         # Subdomains found and their frequencies (needs to be converted to an alphabetically sorted list of "subdomain, frequency" for the report)
         self.subdomain_freq = {}
-
         #Longest page variables
         self.longest_url = None
         self.highest_word_count = 0
 
-    def scrape(self, url : str, resp : Response):
+    def scrape(self, url : str, resp : Response) -> list[Link]:
         links = self.extract_next_links(url, resp)
         return [link for link in links if self.is_valid(link)]
 
-    #TODO verify?
-    def tokenize(self, text: str):
+    def tokenize(self, text: str) -> list[str]:
         #Tokenizes the text removing non alphanumeric chars
         return re.findall(r'[a-zA-Z0-9]+', text.lower())
 
-    def detect_trap(self, url : URL ):
+    @staticmethod
+    def detect_trap(url : URL, resp : Response = None) -> bool:
         '''
         Detect and avoid infinite traps. 
         For example, a calendar page that has links to the next day, which has links to the next day, and so on.
         Return True if you think this is a trap, False otherwise.
         '''
         # calenders, large paths
-        
         path = url._parsed.path
         query = url._parsed.query
         if any(trap in path for trap in ["calendar", 'events'] ):
             return True 
         if any(trap in query for trap in ["day=", "month=", "year="]):
             return True
-
-        if path.count("/") > 6:
+        if path.count("/") > 6: # arbitrary threshold 
             return True
-        #Passed all tests 
-        return False 
-
-    def detect_is_valid_trap(self, parsed_path):
-        path = parsed_path.path.lower()
+        # experimental:
         path_components = path.strip('/').split('/')
         if len(path_components) != len((set(path_components))):
-            return False
-        
-        if "calendar" in path or "events" in path:
-            return False
-
-        if path.count("/") > 6:
-            return False
-
-        return True
-
-
+            return True
+        #--------
+        return False 
 
     #TODO
     def detect_similar(self, url : URL, resp : Response) -> bool:
@@ -172,7 +125,6 @@ class Scraper:
         '''
         pass
 
-    #TODO
     def detect_large(self, url : URL, resp : Response) -> bool:
         '''
         Detect and avoid crawling very large files, especially if they have low information value. 
@@ -199,25 +151,29 @@ class Scraper:
 
     def update_word_freq(self, words: list):
         for token in words:
-            if token in self.stop_words:
+            if token in STOPWORDS:
                 continue
-            self.word_freq[token] = self.word_freq.get(token, 0) + 1
+            with self.lock:
+                self.word_freq[token] = self.word_freq.get(token, 0) + 1
             
     def fifty_most_freq_words(self):
-        sorted_words = sorted(self.word_freq.items(), key=lambda x: x[1], reverse=True)
+        with self.lock:
+            sorted_words = sorted(self.word_freq.items(), key=lambda x: x[1], reverse=True)
         return sorted_words[:50]
 
     def update_longest_page(self, url : URL, word_count : int):
         """
         Counts words in text & updates the longest page record if needed
         """
-        if word_count > self.highest_word_count:
-            self.highest_word_count = word_count
-            self.longest_url = url
+        with self.lock:
+            if word_count > self.highest_word_count:
+                self.highest_word_count = word_count
+                self.longest_url = url
     
     def subdomain_checker(self, url: URL):
-        if url.in_domain("uci.edu"):
-            self.subdomain_freq[url.subdomain] = self.subdomain_freq.get(url.subdomain, 0) + 1 
+        with self.lock:
+            if url.in_domain("uci.edu"):
+                self.subdomain_freq[url.subdomain] = self.subdomain_freq.get(url.subdomain, 0) + 1 
             
     def get_longest_page(self):
         return self.longest_url, self.highest_word_count
@@ -226,11 +182,11 @@ class Scraper:
         return len(self.seen_urls)
     
     def get_subdomain_freq(self):
-        sorted_freq = sorted(self.subdomain_freq.items())
+        with self.lock:
+            sorted_freq = sorted(self.subdomain_freq.items())
         return sorted_freq
     
-    #TODO
-    def extract_next_links(self, url : str, resp : Response):
+    def extract_next_links(self, url : str, resp : Response) -> list[Link]:
         '''
         Implementation required.
         url: the URL that was used to get the page
@@ -248,77 +204,72 @@ class Scraper:
         '''
         
         # ----------------- Our code starts here -----------------
+        url : URL = URL(url)
+        # Check if we have seen the page before
+        with self.lock:
+            if url in self.seen_urls:
+                return []
+            self.seen_urls.add(url)
         if resp.status != 200 or resp.raw_response is None:
             return []
-
-        url_obj = URL(url)
-        
-        # implement checker if url in seen urls (nofrag)
-        Link_, frag = urldefrag(url_obj.url)
-        if Link_ in self.seen_urls:
+        # check to see if file is too large 
+        if self.detect_large(url, resp):
             return []
-        
-        #We check to see if file is too large 
-        if self.detect_large(url_obj, resp):
+        # check to see if it's a trap
+        if Scraper.detect_trap(url, resp):
             return []
-        
+        # Now read content and extract links
         try:
             bs_obj = BeautifulSoup(resp.raw_response.content, "lxml")
-            clean_text = bs_obj.get_text(separator=" ")
-            
-            url_obj = URL(url)
-
-            # Run checks for traps, similar pages, and large files
-            if self.detect_trap(url_obj):
-                return []
+            clean_text = bs_obj.get_text(separator=" ")       
 
             #TOKENIZE WORDS
             words = self.tokenize(clean_text)
             word_count = len(words)
             
+            # check similarity with other pages (experimental, not implemented)
+            # if self.detect_similar(url, resp):
+            #   return []     
             #Check for low info, like if page is > 1MB but has less than 200 words.
-            if self.detect_low_info(url_obj, resp, word_count):
+            if self.detect_low_info(url, resp, word_count):
                 return []
-            
-            #FIND WORDS COUNTS
+
+            # Analytics            
             self.update_word_freq(words)
-
             #Update for longest Page
-            self.update_longest_page(url_obj, len(words))
-
+            self.update_longest_page(url, len(words))
             #Checks and counts how many subdomains are in uci.domain
-            self.subdomain_checker(url_obj)
-
-            # Add to seen_urls/no frag
-            self.seen_urls.add(Link_)
+            self.subdomain_checker(url)
 
         except Exception as e:
             print(f"Error processing {url}: {e}")
             return []
         
-        total_links = set()
+        total_links : Set[Link] = set()
         for a in bs_obj.find_all("a", href = True):
             hlink =  a["href"]    
-            total_href = urljoin(url, hlink)
+            total_href = urljoin(url.url, hlink)
             total_href, frag = urldefrag(total_href)
-            total_links.add(total_href)
+            total_links.add(Link(URL(total_href)))
 
         # ----------------- Our code ends here -----------------
 
         return list(total_links)
 
-    def is_valid(self, url : str):
+    @staticmethod
+    def is_valid(url : str | Link) -> bool:
         # Decide whether to crawl this url or not. 
         # If you decide to crawl it, return True; otherwise return False.
         # There are already some conditions that return False.
         try:
-            parsed = urlparse(url)
-
+            if isinstance(url, str):
+                url = Link(URL(url))
+            url : URL = url.url
             #We check to see if the url structure is a trap or not
-            if self.detect_is_valid_trap(parsed) == False:
+            if Scraper.detect_trap(url):
                 return False
 
-            if parsed.scheme not in set(["http", "https"]):
+            if url._parsed.scheme not in set(["http", "https"]):
                 return False
 
             # ----------------- Our code starts here -----------------
@@ -328,7 +279,7 @@ class Scraper:
                             "cs.uci.edu",
                             "informatics.uci.edu",
                             "stat.uci.edu"]
-            l_domain = parsed.netloc.lower()
+            l_domain = url._parsed.netloc.lower()
             if not any(l_domain.endswith("." + valid_domain) or l_domain == valid_domain for valid_domain in allowed_domains):
                 return False
 
@@ -342,9 +293,9 @@ class Scraper:
                 + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
                 + r"|epub|dll|cnf|tgz|sha1"
                 + r"|thmx|mso|arff|rtf|jar|csv"
-                + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())
+                + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", url._parsed.path.lower())
 
         except TypeError:
-            print ("TypeError for ", parsed)
+            print ("TypeError for ", url._parsed)
             raise
         
