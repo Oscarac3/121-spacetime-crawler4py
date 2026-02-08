@@ -196,25 +196,30 @@ class Scraper:
         Return True if you think this is a similar page, False otherwise.
         Using Simhash from lecture 
         '''
+        #only using built in libraries like hashlib and re
+        if not resp.raw_response or not resp.raw_response.content:
+            return False
 
+        #decode & strip HTML to get clean text
         raw_bytes = resp.raw_response.content
-        text = raw_bytes.decode("utf-8", errors = "ignore")
-        # tokenize from slide and frequency
-        tokenized = self.tokenize(text)
+        clean_text = raw_bytes.decode("utf-8", errors="ignore")
+        clean_text = re.sub(r'<[^>]+>', '', clean_text)
+        clean_text = re.sub(r"\s+", " ", clean_text).strip().lower()
+
+        tokenized = self.tokenize(clean_text)
+        if not tokenized:
+            return False
+
         freqs = {}
         for token in tokenized:
             freqs[token] = freqs.get(token, 0) + 1
-        
-        # 64 lenght vector/ using 64 bits
-        # part 2 and 3 from slides
+
+        #simhash computation
         v = [0] * 64
         for token, weight in freqs.items():
-            # base 16 int from hash 
             hash_u = int(hashlib.sha1(token.encode("utf-8")).hexdigest(), 16)
-
             for i in range(64):
-                #least significant bit from i num
-                if(hash_u >> i) & 1:
+                if (hash_u >> i) & 1:
                     v[i] += weight
                 else:
                     v[i] -= weight
@@ -222,16 +227,18 @@ class Scraper:
         simhash = 0
         for i, sum_ in enumerate(v):
             if sum_ > 0:
-                #bit wise or it at index i 
-                simhash |= (1 << i )
-        
+                simhash |= (1 << i)
+
+        #compare with seen simhashes
         for seen_hash in self.seen_near_content_hashes:
-            # XOR if both same 0, diff 1 
-            similarity = bin(simhash ^ seen_hash).count("1")
-            #counting diff so 1 - to get same ratio
-            S_a_b = 1 - similarity/64
-            if S_a_b >= 0.9:
+            #hamming distance 4 similarity
+            hamming = bin(simhash ^ seen_hash).count("1")
+            similarity = 1 - (hamming / 64)
+            #strict threshold 4 false positives
+            if similarity >= 0.95:
                 return True
+
+        # record and continue
         self.seen_near_content_hashes.add(simhash)
         return False
 
@@ -345,11 +352,11 @@ class Scraper:
             word_count = len(words)
             
             # check exact similarity with other pages (experimental)
-            #if self.detect_exact_similar(url, resp):
-              #return []    
+            if self.detect_exact_similar(url, resp):
+                return []
             # check near similarity with other pages (experimental)
-            #if self.detect_near_similar(url, resp):
-              #return []     
+            if self.detect_near_similar(url, resp):
+                return []     
             
             #Check for low info, like if page is > 1MB but has less than 200 words.
             if self.detect_low_info(url, resp, word_count):
