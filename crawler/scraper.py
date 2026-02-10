@@ -2,7 +2,7 @@ import re
 import pickle
 import hashlib
 import threading
-from typing import Set
+from typing import Set, Dict
 from utils import Response, get_logger
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
@@ -175,7 +175,7 @@ class Scraper:
             return False
 
         #single string from list of words, then hash
-        content_string = "".join(words)
+        content_string = " ".join(words)
         content_hash = hashlib.sha1(content_string.encode("utf-8")).hexdigest()
 
         if content_hash in self.seen_exact_content_hashes:
@@ -197,7 +197,7 @@ class Scraper:
             return False
 
         #compute term frequencies
-        freqs = {}
+        freqs : Dict[str, int] = {}
         for token in words:
             freqs[token] = freqs.get(token, 0) + 1
 
@@ -322,9 +322,11 @@ class Scraper:
             return []
         # check to see if file is too large 
         if self.detect_large(url, resp):
+            self.logger.debug(f"Large file detected: {url} with size {len(resp.raw_response.content)} bytes")
             return []
         # check to see if it's a trap
         if Scraper.detect_trap(url, resp):
+            self.logger.debug(f"Trap detected: {url}")
             return []
         # Now read content and extract links
         try:
@@ -335,15 +337,18 @@ class Scraper:
             words = self.tokenize(clean_text)
             word_count = len(words)
             
-            # # check exact similarity with other pages (experimental)
-            # if self.detect_exact_similar(url, resp):
-            #     return []
-            # # check near similarity with other pages (experimental)
-            # if self.detect_near_similar(url, resp):
-            #     return []     
+            # check exact similarity with other pages (experimental)
+            if self.detect_exact_similar(url, words):
+                self.logger.debug(f"Exact duplicate detected: {url}")
+                return []
+            # check near similarity with other pages (experimental)
+            if self.detect_near_similar(url, words):
+                self.logger.debug(f"Near duplicate detected: {url}")
+                return []
             
             #Check for low info, like if page is > 1MB but has less than 200 words.
             if self.detect_low_info(url, resp, word_count):
+                self.logger.debug(f"Low information page detected: {url} with word count {word_count} and size {len(resp.raw_response.content)} bytes")
                 return []
 
             # Analytics (single lock acquisition for all updates)
