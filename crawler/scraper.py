@@ -162,7 +162,7 @@ class Scraper:
         return False 
 
     #TODO
-    def detect_exact_similar(self, url : URL, resp : Response) -> bool:
+    def detect_exact_similar(self, url : URL, words: list[str]) -> bool:
         '''
         Detect and avoid sets of exact pages. 
         For example, a page that has links to the same page with different parameters, but the content is the same.
@@ -170,24 +170,21 @@ class Scraper:
 
         Return True if you think this is a similar page, False otherwise.
         '''
-        # only using built in libraries like hashlib and re 
-        raw_bytes = resp.raw_response.content
-        text = raw_bytes.decode("utf-8", errors = "ignore")
-        
-        # remove html
-        text = re.sub(r'<[^>]+>', '', text)
-        # white space and lower it for exact words match
-        text = re.sub(r"\s+", " ", text).strip().lower()
+        #only using built in libraries like hashlib and re 
+        if not words:
+            return False
 
-        hash = hashlib.sha1(text.encode("utf-8")).hexdigest()
+        #single string from list of words, then hash
+        content_string = "".join(words)
+        content_hash = hashlib.sha1(content_string.encode("utf-8")).hexdigest()
 
-        if hash in self.seen_exact_content_hashes:
+        if content_hash in self.seen_exact_content_hashes:
             return True
-        # add to set if not elsewhere
-        self.seen_exact_content_hashes.add(hash)
+            
+        self.seen_exact_content_hashes.add(content_hash)
         return False
-    
-    def detect_near_similar(self, url: URL, resp : Response)-> bool:
+
+    def detect_near_similar(self, url: URL, words: list[str])-> bool:
         '''
         Detect and avoid sets of near similar pages. 
         For example, a page that has links to the same page with different parameters, but the content is the same.
@@ -196,27 +193,18 @@ class Scraper:
         Return True if you think this is a similar page, False otherwise.
         Using Simhash from lecture 
         '''
-        #only using built in libraries like hashlib and re
-        if not resp.raw_response or not resp.raw_response.content:
+        if not words:
             return False
 
-        #decode & strip HTML to get clean text
-        raw_bytes = resp.raw_response.content
-        clean_text = raw_bytes.decode("utf-8", errors="ignore")
-        clean_text = re.sub(r'<[^>]+>', '', clean_text)
-        clean_text = re.sub(r"\s+", " ", clean_text).strip().lower()
-
-        tokenized = self.tokenize(clean_text)
-        if not tokenized:
-            return False
-
+        #compute term frequencies
         freqs = {}
-        for token in tokenized:
+        for token in words:
             freqs[token] = freqs.get(token, 0) + 1
 
-        #simhash computation
+        #simhash 
         v = [0] * 64
         for token, weight in freqs.items():
+            #use the hash of token to update the vector
             hash_u = int(hashlib.sha1(token.encode("utf-8")).hexdigest(), 16)
             for i in range(64):
                 if (hash_u >> i) & 1:
@@ -229,19 +217,15 @@ class Scraper:
             if sum_ > 0:
                 simhash |= (1 << i)
 
-        #compare with seen simhashes
+        #compare Hamming distance with seen hashes
         for seen_hash in self.seen_near_content_hashes:
-            #hamming distance 4 similarity
             hamming = bin(simhash ^ seen_hash).count("1")
             similarity = 1 - (hamming / 64)
-            #strict threshold 4 false positives
-            if similarity >= 0.95:
+            if similarity >= 0.95: 
                 return True
 
-        # record and continue
         self.seen_near_content_hashes.add(simhash)
         return False
-
 
 
     def detect_large(self, url : URL, resp : Response) -> bool:
@@ -352,10 +336,10 @@ class Scraper:
             word_count = len(words)
             
             # check exact similarity with other pages (experimental)
-            if self.detect_exact_similar(url, resp):
+            if self.detect_exact_similar(url, words):
                 return []
             # check near similarity with other pages (experimental)
-            if self.detect_near_similar(url, resp):
+            if self.detect_near_similar(url, words):
                 return []     
             
             #Check for low info, like if page is > 1MB but has less than 200 words.
