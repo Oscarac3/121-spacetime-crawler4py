@@ -39,7 +39,7 @@ class ThreadedFrontier(object):
         # Termination tracking: how many workers currently have a URL checked out
         self.active_workers = 0
 
-        self.polite = False
+        self.polite = True
 
         self._init_frontier(restart)
     
