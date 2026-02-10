@@ -55,6 +55,6 @@ class Stats:
         return sorted_freq
 
 if __name__ == "__main__":
-    PATH = "/home/evij/ics121/121-spacetime-crawler4py/run/deploy/run-1/raw_stats-1.pkl"
+    PATH = "/home/evij/ics121/121-spacetime-crawler4py/run/deploy/run-2/20260210-114122.pkl"
     stats = Stats(PATH)
 
